@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+node_modules/
+.env
+*.sqlite
+*.sqlite-*
+.superpowers/
+# written by tests/render_plugin.mjs: a copy of the page with its imports rewritten
+tests/page-under-test.mjs

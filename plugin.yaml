@@ -1,0 +1,12 @@
+{
+  "name": "hermes-call-ledger",
+  "version": "0.4.0",
+  "description": "Per-call cost ledger for Hermes Desktop: every call, priced against the real bill.",
+  "author": "Adolanium",
+  "manifest_version": 1,
+  "kind": "standalone",
+  "provides_tools": [],
+  "provides_hooks": ["post_api_request", "post_auxiliary_call", "api_request_error"],
+  "provides_middleware": [],
+  "requires_env": []
+}
