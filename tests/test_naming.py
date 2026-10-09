@@ -17,14 +17,25 @@ from tools.scan_secrets import NOT_SHIPPED          # noqa: E402  (one scope lis
 FORBIDDEN = ("hermes-reset" "watch", "PLUGIN_" "NAME = 'Usage'", "/" "reset" "watch")
 # One exception, and it is asserted rather than skipped: the import glob that still finds stores written
 # before the rename. Those files are the only record of charges from that period, so dropping the pattern
-# would silently lose history. A comment marker on the same line is what whitelists it.
+# would silently lose history. Only that exact spelling, with the marker on its own line, is whitelisted.
 LEGACY_OK = "pre-rename stores"
-LEGACY_STORE = "plugin-data/" "resetwatch"
+# The old store directory, assembled from pieces so that this file is not a hit for its own count.
+STORE_DIR = "plugin-" "data"
+OLD_STORE_NAME = "reset" "watch"
+LEGACY_STORE = STORE_DIR + "/" + OLD_STORE_NAME
+# Every spelling of that directory a shipped line may still carry: the contiguous glob, and the same
+# directory built out of separate path elements (`"plugin-data"` then `"resetwatch"`), which a substring
+# comparison cannot see.
+LEGACY_SPELLINGS = re.compile(STORE_DIR + r"""["'/ ]{0,6}""" + OLD_STORE_NAME)
+# usage_store.py's reader glob, plus the nine fixture paths in the suite that write a pre-rename store so
+# the import stays tested. Locked rather than counted: an increase is something new learning the old name,
+# a deletion is a test that stopped covering the history the reader glob exists to import.
+LEGACY_SPELLING_COUNT = 10
 
 
 def _tracked_text():
     for f in ROOT.rglob("*"):
-        if not f.is_file() or f.suffix not in (".py", ".js", ".json", ".yaml", ".md"):
+        if not f.is_file() or f.suffix not in (".py", ".js", ".mjs", ".json", ".yaml", ".md"):
             continue
         rel = f.relative_to(ROOT).as_posix()
         if "__pycache__" in f.parts or any(rel.startswith(p) for p in NOT_SHIPPED):
@@ -52,15 +63,22 @@ def test_no_private_identity_survives():
     assert exempt[0][0] == "usage_store.py", exempt
 
 
-def test_the_legacy_import_glob_is_the_only_old_name_left():
-    """Whitelisting without an escape hatch: exactly one line may still name the old store dir."""
+def test_the_old_store_dir_is_named_exactly_where_the_history_needs_it():
+    """Every spelling of the old store directory is counted, and the number is a lock.
+
+    The test this replaces looked for the contiguous glob only, so it reported "exactly one line" while
+    nine more shipped lines named the same directory as separate path elements -- the old name is in the
+    tree ten times, and the name of this test is what that number actually guards.
+    """
     hits = [(f.relative_to(ROOT).as_posix(), i + 1) for f, text in _tracked_text()
-            for i, line in enumerate(text.splitlines())
-            if LEGACY_STORE in line]
-    assert len(hits) == 1, hits
-    assert LEGACY_OK in next(
-        (ln for ln in (ROOT / hits[0][0]).read_text(encoding='utf-8').splitlines()
-         if LEGACY_STORE in ln))
+            for i, line in enumerate(text.splitlines()) if LEGACY_SPELLINGS.search(line)]
+    assert len(hits) == LEGACY_SPELLING_COUNT, hits
+    assert {rel for rel, _ in hits} == {"usage_store.py", "tests/test_usage_page.py"}, hits
+    # The one non-test spelling is the reader glob, and it is the line the gate above exempts.
+    reader = [ln for ln in (ROOT / "usage_store.py").read_text(encoding="utf-8").splitlines()
+              if LEGACY_SPELLINGS.search(ln)]
+    assert len(reader) == 1, reader
+    assert LEGACY_STORE in reader[0] and LEGACY_OK in reader[0], reader
 
 
 def test_identity_is_one_string_across_surfaces():
