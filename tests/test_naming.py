@@ -82,13 +82,21 @@ def test_the_old_store_dir_is_named_exactly_where_the_history_needs_it():
 
 
 def test_identity_is_one_string_across_surfaces():
+    """One id on every surface that addresses the plugin with it -- the agent side included.
+
+    `__init__.py` broadcasts each call row under its own copy of the id, so a drift there is invisible to
+    the page (it keeps rendering) and to the manifest check (it keeps passing): the events simply go to a
+    plugin id nobody is listening under.
+    """
     manifest = (ROOT / "plugin.yaml").read_text(encoding="utf-8")
     js = (ROOT / "desktop" / "plugin.js").read_text(encoding="utf-8")
     dash = (ROOT / "dashboard" / "manifest.json").read_text(encoding="utf-8")
+    init = (ROOT / "__init__.py").read_text(encoding="utf-8")
     name = re.search(r'"name":\s*"([^"]+)"', manifest).group(1)
     pid = re.search(r"const PLUGIN_ID = '([^']+)'", js).group(1)
     dname = re.search(r'"name":\s*"([^"]+)"', dash).group(1)
-    assert name == pid == dname == "hermes-call-ledger", (name, pid, dname)
+    iid = re.search(r'^PLUGIN_ID = "([^"]+)"', init, re.M).group(1)
+    assert name == pid == dname == iid == "hermes-call-ledger", (name, pid, dname, iid)
 
 
 def test_store_is_under_the_plugin_id_dir():
