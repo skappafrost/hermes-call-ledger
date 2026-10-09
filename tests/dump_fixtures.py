@@ -71,7 +71,7 @@ _CATALOG = [
      "seller": "example", "kind": "text", "mode": "chat", "context": 200000, "in": 200.0, "out": 800.0,
      "cache_read": 50.0, "cache_write": 250.0, "floor": 5.0, "promo_off": 50.0, "promo_in": 100.0,
      "promo_out": 400.0, "active": None, "recommended": True, "tools": True, "vision": True,
-     "requests": 900, "success_rate": 99.2, "tps": 31.5, "latency_ms": 10675.0, "score": 92.0,
+     "requests": 900, "success_rate": 99.2, "tps": 31.5, "latency_ms": 3900.0, "score": 92.0,
      "rating": 4.6, "verified": True},
     {"key": "example/example/model-y", "id": "example/model-y", "name": "Model Y",
      "provider": "example", "provider_name": "Example", "url": "https://vilao.ai/model/example/model-y",

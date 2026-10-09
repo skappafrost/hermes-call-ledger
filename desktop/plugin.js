@@ -392,8 +392,8 @@ const dateOf = ts => ts ? DATE.format(new Date(Number(ts) * 1000)) : '—'
 const clockOf = ts => ts ? CLOCK.format(new Date(Number(ts) * 1000)) : '—'
 const longOf = ts => ts ? LONG.format(new Date(Number(ts) * 1000)) : '—'
 
-/* Token counts are read as magnitude, not digits: 107520 is a wall of text, 107,5k is a number. */
-/* Tokens are read as magnitude: 110665 is a wall of digits, 110,7k is a number you can compare. */
+/* Token counts are read as magnitude, not digits: 20000 is a wall of text, 20,0k is a number. */
+/* Tokens are read as magnitude: 25250 is a wall of digits, 25,3k is a number you can compare. */
 const tok = v => {
   const n = Number(v) || 0
   if (n >= 1000000) return (n / 1000000).toFixed(n >= 10000000 ? 0 : 1).replace('.', ',') + 'M'

@@ -84,7 +84,7 @@ marketplace is read, pruned to `CATALOG_RETENTION_DAYS`.
 
 ```
 py -3.13 -m pytest tests -q                # store, matcher, routes, identity and the two gates
-py -3.13 tests/test_usage_page.py          # the same suite standalone: cases=45 failures=0
+py -3.13 tests/test_usage_page.py          # the same suite standalone: cases=46 failures=0
 py -3.13 tests/dump_fixtures.py            # rebuild tests/fixtures.json from a throwaway home
 node tests/render_plugin.mjs               # renders all 7 tabs and the Page against those fixtures
 node tests/ui_units.mjs                    # unit gate for the pure table helpers

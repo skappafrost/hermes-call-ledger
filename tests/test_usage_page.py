@@ -1,6 +1,11 @@
 """Tests for the Usage page backend: store, matcher, bill mapping, plugin-host loading.
 
 Runs under pytest, and standalone: ``python tests/test_usage_page.py``.
+
+Model names are real offers in the public vilao catalogue (`cx/gpt-6-astra`, `dogi/glm-5.3`,
+`alic/glm-5.1`): the matcher has to be tested against the strings the marketplace really returns, and a
+catalogue name is public product data, not anyone's personal data. Every *figure* beside them is
+synthetic -- tokens, dong, latency, byte counts -- in this file and in tests/fixtures/usage_item.json.
 """
 from __future__ import annotations
 
@@ -63,6 +68,11 @@ def _bill(bill_mod, store, ts, model="cx/gpt-6-astra", tokens=1100, cost=19.4, r
                            "cache_read_input_tokens": 120, "reasoning_tokens": 5,
                            "latency_ms": 1500, "success": True, "provider_type": "openai"})
     return store.record_bill_rows([row]), row
+
+
+def _usage_item():
+    """The recorded `/llm/usage` element: the provider's field names, one synthetic call's figures."""
+    return json.loads((Path(__file__).parent / "fixtures" / "usage_item.json").read_text(encoding="utf-8"))
 
 
 def test_matched_bill_is_not_reingested(tmp_path):
@@ -133,13 +143,13 @@ def test_pairing_compares_the_totals_each_side_actually_bills(tmp_path):
     now = time.time()
     payload = {"session_id": "s1", "platform": "cli", "provider": "vilao-ai",
                "model": "vilao-ai/cx/gpt-6-astra", "api_mode": "chat_completions",
-               "finish_reason": "stop", "usage": {"input_tokens": 3019, "output_tokens": 126,
-                                                  "cache_read_input_tokens": 107520},
-               "api_duration": 10.6, "started_at": now - 10.6, "ended_at": now}
+               "finish_reason": "stop", "usage": {"input_tokens": 5000, "output_tokens": 250,
+                                                   "cache_read_input_tokens": 100000},
+               "api_duration": 2.4, "started_at": now - 2.4, "ended_at": now}
     store.record_local(ts=now, payload=payload, est_cost_usd=0.00074)
     row = store.recent(limit=1)[0]
-    assert row["tok_total"] == 3145, row            # what Hermes reports as the call's own tokens
-    _bill(bill, store, now + 0.2, tokens=110665, rid="cached-call", cost=19.4)
+    assert row["tok_total"] == 5250, row             # what Hermes reports as the call's own tokens
+    _bill(bill, store, now + 0.2, tokens=105250, rid="cached-call", cost=19.4)
     assert store.match_rows(since=now - 3600) == 1, "a cached call and its charge did not pair"
     paired = store.recent(limit=2)[0]
     assert paired["bill_cost_vnd"] == 19.4 and paired["match_state"] == "matched", paired
@@ -596,19 +606,35 @@ def test_hook_derives_duration_and_ttft():
     assert init._timing({}) == {"duration_ms": None, "ttft_ms": None}
 
 
-def test_bill_row_maps_real_vilao_fields():
-    """Fixture is a verbatim /llm/usage element shape."""
+def test_bill_row_maps_a_vilao_usage_element():
+    """The fixture is a `/llm/usage` element in shape; its figures are invented, not measured."""
     os.environ.setdefault("HERMES_HOME", os.getcwd())
     bill = _load("rw_bill", PLUGIN_ROOT / "usage_bill.py")
-    item = json.loads((Path(__file__).parent / "fixtures" / "usage_item.json").read_text(encoding="utf-8"))
-    row = bill.to_row(item)
+    row = bill.to_row(_usage_item())
     assert row["model"] == "example/model-x"
-    assert row["bill_cost_vnd"] == 19.398999999999997
-    assert row["tok_total"] == 110665 and row["usage"]["cache_read_tokens"] == 107520
-    assert row["duration_ms"] == 10675 and row["ttft_ms"] == 6894
+    assert row["bill_cost_vnd"] == 8.5
+    assert row["tok_total"] == 25250 and row["usage"]["cache_read_tokens"] == 20000
+    assert row["duration_ms"] == 2400 and row["ttft_ms"] == 700
     assert row["finish_reason"] == "stop"
     assert row["bill_request_id"] == "00000000-0000-4000-8000-000000000001"
     assert row["bill_key_id"] == "00000000-0000-4000-8000-000000000000"
+
+
+def test_the_bill_fixture_keeps_the_billed_shape_while_staying_synthetic():
+    """What the fixture exists to demonstrate: a bill prices input + output + cache read.
+
+    The numbers are made up -- one real call's figures would be one person's account sitting in a public
+    repository -- but the shape is the provider's, and `match_rows()` divides a đ/1M price by exactly that
+    sum, so the invariant is what every future refresh of the file has to preserve.
+    """
+    item = _usage_item()
+    billed = item["input_tokens"] + item["output_tokens"] + item["cache_read_input_tokens"]
+    assert billed == item["total_tokens"], (billed, item["total_tokens"])
+    assert item["input_cost"] + item["cache_read_cost"] + item["output_cost"] == item["total_cost"]
+    assert item["reasoning_tokens"] < item["output_tokens"]
+    # No client library and version of anyone's machine, and no real measurement date.
+    assert item["user_agent"] == "example-client/1.0", item["user_agent"]
+    assert item["created_at"].endswith("T00:00:00.000Z"), item["created_at"]
 
 
 def test_deep_walk_resumes_and_a_pulse_does_not_rewind_it(tmp_path):
@@ -880,14 +906,14 @@ def test_usage_by_model_reports_the_billing_token_shape(tmp_path):
     store.record_local(ts=now - 10, payload={
         "session_id": "s1", "provider": "vilao-ai", "model": "vilao-ai/alic/glm-5.1",
         "finish_reason": "stop",
-        "usage": {"input_tokens": 3019, "output_tokens": 126, "cache_read_input_tokens": 107520}},
+        "usage": {"input_tokens": 5000, "output_tokens": 250, "cache_read_input_tokens": 20000}},
         est_cost_usd=0.01)
     rows = store.usage_by_model(days=2)
     assert len(rows) == 1, rows
     r = rows[0]
-    assert int(r["tok_in"]) == 3019 and int(r["tok_out"]) == 126 and int(r["tok_cache"]) == 107520
-    assert int(r["tokens"]) == 3145, r              # the local shape
-    assert int(r["tok_billed"]) == 110665, r        # the billed shape
+    assert int(r["tok_in"]) == 5000 and int(r["tok_out"]) == 250 and int(r["tok_cache"]) == 20000
+    assert int(r["tokens"]) == 5250, r              # the local shape
+    assert int(r["tok_billed"]) == 25250, r        # the billed shape
     assert conn.execute("SELECT COUNT(*) FROM calls WHERE day IS NULL").fetchone()[0] == 0
 
 
