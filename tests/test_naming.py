@@ -64,3 +64,24 @@ def test_store_is_under_the_plugin_id_dir():
     src = (ROOT / "usage_store.py").read_text(encoding="utf-8")
     assert '"plugin-data", "call-ledger", "calls.sqlite"' in src
     assert 'profiles/*/plugin-data/call-ledger/calls.sqlite' in src
+
+
+# The manifest speaks for whoever publishes the repository. Written in two literals so this file -- the
+# gate that forbids naming third parties -- does not carry the handle either: `plugin.yaml`'s `author`
+# field stays the one place the published tree names a person.
+MAINTAINER = "sk" "appafrost"
+
+
+def test_author_is_the_maintainer_and_names_no_third_party():
+    """A renamed plugin published under somebody else's handle is a misattribution.
+
+    The manifest is what the catalog shows as the author and what a reader holds the publisher to, so it
+    can only name the person who owns the published repository. Lineage credit is README copy (Task 9),
+    not an identity claim in a manifest field.
+    """
+    manifest = (ROOT / "plugin.yaml").read_text(encoding="utf-8")
+    author = re.search(r'"author":\s*"([^"]*)"', manifest).group(1)
+    assert author == MAINTAINER, author
+    # One handle and nothing else: no upstream name, no "et al.", no organisation, no e-mail address.
+    assert re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{1,38}", author), author
+    assert ("Adol" "anium") not in manifest, "lineage belongs in the README, not in the manifest"

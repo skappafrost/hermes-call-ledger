@@ -12,11 +12,16 @@ from tools.scan_secrets import text_files                                   # no
 
 # The first letter of each private token sits in a character class: this table has to quote what it
 # forbids, and a pattern that matched its own source would report the gate itself as a leak.
+#
+# The host group carries a lookahead for the same reason it carries the class. The handle of the person
+# who publishes this repository -- the manifest `author` field, public by definition -- starts with the
+# same syllable as the private funnel host, and a bare prefix would flag the manifest for naming its own
+# maintainer. So the prefix is a hit unless the handle follows it: naming the host still reports.
 FORBIDDEN = {
     "profile name": r"neo_[a]gent|vex_[a]gent",
     "machine path": r"[H]a Trung|AppData\\Local|C:\\[U]sers",
     "private tooling": r"scratc[h]/|[b]ackups/|rollup-[p]re|usage-[p]rework",
-    "peer host": r"[s]kappa|ts\.net|[d]unker-saturation",
+    "peer host": r"[s]kappa(?!frost)|ts\.net|[d]unker-saturation",
 }
 COMPILED = {name: re.compile(pattern) for name, pattern in FORBIDDEN.items()}
 
