@@ -72,12 +72,15 @@ for (const [name, Comp] of Object.entries({
     const dong = /(₫?[\d.,]+\s*(?:đ|dong))/.exec(html)
     const missing = MUST[name] && !html.includes(MUST[name]) ? 'MISSING[' + MUST[name] + ']' : ''
     if (process.env.DUMP) io.writeFileSync(join(here, 'tab-' + name + '.html'), html, 'utf-8')
-    console.log('%-10s %7d chars  %-26s %s%s%s', name, html.length,
-      bad || missing ? 'SUSPECT ' + (bad ? bad[0] : missing) : 'ok',
-      clock ? 'clock=' + clock[1] : '', dong ? ' money=' + dong[1] : '')
+    /* Padded by hand: console.log has no C-style width specifiers, so the format string that used to sit
+     * here was printed literally and ran the values together (`Live223835ok`). The gate is exit-code and
+     * SUSPECTS based, so it was never wrong -- this is only the difference between a log and a wall. */
+    const status = bad || missing ? 'SUSPECT ' + (bad ? bad[0] : missing) : 'ok'
+    console.log([name.padEnd(10), (html.length + ' chars').padStart(13), status.padEnd(26),
+      clock ? 'clock=' + clock[1] : '', dong ? 'money=' + dong[1] : ''].filter(Boolean).join(' '))
     if (bad || missing) SUSPECTS.push(name + ': ' + (bad ? bad[0] : missing))
   } catch (err) {
-    console.log('%-10s THREW %s', name, String(err && err.message).slice(0, 130))
+    console.log(name.padEnd(10) + ' THREW ' + String(err && err.message).slice(0, 130))
     SUSPECTS.push(name + ' threw: ' + String(err && err.message).slice(0, 90))
   }
 }
