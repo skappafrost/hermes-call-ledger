@@ -33,10 +33,23 @@ def _tracked_text():
 
 
 def test_no_private_identity_survives():
-    bad = [(f.relative_to(ROOT), i + 1) for f, text in _tracked_text()
-           for i, line in enumerate(text.splitlines())
-           if any(b in line for b in FORBIDDEN) and LEGACY_OK not in line]
+    """The whitelist is the store-directory spelling itself, never the comment alone.
+
+    A marker-only exemption is an escape hatch: a line that carried `pre-rename stores` could have
+    reintroduced the plugin id or the old route and passed this gate and the count test below both. So a
+    line is exempt only when it names the old store directory *and* carries the marker, and there is
+    exactly one such line -- the reader glob that still imports stores written before the rename.
+    """
+    exempt, bad = [], []
+    for f, text in _tracked_text():
+        for i, line in enumerate(text.splitlines()):
+            if not any(b in line for b in FORBIDDEN):
+                continue
+            where = (f.relative_to(ROOT).as_posix(), i + 1)
+            (exempt if LEGACY_STORE in line and LEGACY_OK in line else bad).append(where)
     assert bad == [], bad
+    assert len(exempt) == 1, exempt
+    assert exempt[0][0] == "usage_store.py", exempt
 
 
 def test_the_legacy_import_glob_is_the_only_old_name_left():
