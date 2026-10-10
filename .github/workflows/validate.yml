@@ -34,25 +34,20 @@ jobs:
       # This plugin declares no Python dependencies (spec §4.8), so the four packages below are the host's
       # own: pytest to run the suite, and fastapi / httpx / ruamel.yaml because `dashboard/plugin_api.py`
       # builds a real APIRouter and the config reader parses the manifest with the loader Hermes uses.
-      # Verified against a clean 3.11 venv holding only these: 64 passed.
+      # No number here: the suite prints its own count on every push, and a figure copied into this comment
+      # goes stale on the first test added and reads as a defect in the runner.
       - name: Python dependencies
         run: python -m pip install --no-input pytest fastapi httpx ruamel.yaml
 
-      - name: Python gates
-        # `runner.temp` is the context form of the `$RUNNER_TEMP` the clone above wrote into; the `env`
-        # context has no `RUNNER_TEMP` key, so writing `${{ env.RUNNER_TEMP }}` here would pass an empty
-        # string and every reader would fall back to a path that does not exist.
-        env:
-          HERMES_AGENT_DIR: ${{ runner.temp }}/hermes-agent
-        run: python -m pytest tests -q
-
-      - name: Secret and PII scans
-        run: python tools/scan_secrets.py && python tools/scan_pii.py .
-
-      # The JS gates borrow React from `$HERMES_AGENT_DIR/node_modules` (tests/render_plugin.mjs), which a
-      # `--depth 1` clone does not carry. Installed in a scratch dir and linked in, because `npm install` at
-      # the clone root would resolve hermes-agent's whole npm workspace (Electron and all) for two packages.
+      # The JS half runs first, and not by taste: `tests/render_plugin.mjs` writes tests/page-under-test.mjs,
+      # which is a copy of the page carrying the same version claim as `plugin.yaml`, and the Python identity
+      # gate names that copy among the files whose version has to equal the released one. Running pytest on a
+      # fresh checkout -- where the copy is gitignored and does not exist yet -- would fail on the absence of
+      # a generated file rather than on anything the contributor wrote.
       - name: React for the render harness
+        # The JS gates borrow React from `$HERMES_AGENT_DIR/node_modules` (tests/render_plugin.mjs), which a
+        # `--depth 1` clone does not carry. Installed in a scratch dir and linked in, because `npm install` at
+        # the clone root would resolve hermes-agent's whole npm workspace (Electron and all) for two packages.
         run: |
           mkdir -p "$RUNNER_TEMP/jsdeps"
           npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/jsdeps" react@19 react-dom@19
@@ -70,6 +65,20 @@ jobs:
           node tools/no_literal.mjs
           node tests/ui_units.mjs
           node --test tests/*.test.mjs
+
+      - name: Python gates
+        # `runner.temp` is the context form of the `$RUNNER_TEMP` the clone above wrote into; the `env`
+        # context has no `RUNNER_TEMP` key, so writing `${{ env.RUNNER_TEMP }}` here would pass an empty
+        # string and every reader would fall back to a path that does not exist.
+        env:
+          HERMES_AGENT_DIR: ${{ runner.temp }}/hermes-agent
+        run: python -m pytest tests -q
+
+      - name: Secret and PII scans
+        # Last, so the generated page copy is on disk and gets scanned with everything else the push
+        # publishes: it is a copy of `desktop/plugin.js`, so nothing new can be found, and a scan that ran
+        # before the harness would simply not look at it.
+        run: python tools/scan_secrets.py && python tools/scan_pii.py .
 
 # `hermes plugins validate .` is deliberately NOT a step here: it needs a provisioned Hermes environment,
 # and a plugin repo must not install one in CI. The catalog's own CI runs it against the commit you pin,

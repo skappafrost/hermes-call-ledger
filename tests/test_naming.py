@@ -30,6 +30,13 @@ UPSTREAM_ID = "hermes-reset" "watch"
 DOC_LINEAGE_FILE = "README.md"
 DOC_LINEAGE_TOKENS = (UPSTREAM_ID,)
 DOC_LINEAGE_LINES = 5
+# The two spellings a shipped file uses to declare its version: the manifest/manifest-like `version`
+# field, and the JS constant the page prints in its footer. The second is assembled out of pieces for the
+# same reason the forbidden tokens are -- spelled as one literal anywhere in this file, including in this
+# comment, it is itself a declaration of a version, and the gate below would report this file as a fifth
+# shipped surface that makes the claim.
+VERSION_FIELDS = (r'"version":\s*"([^"]+)"',
+                  r"const VERSION = " r"'([^']+)'")
 # The old store directory, assembled from pieces so that this file is not a hit for its own count.
 STORE_DIR = "plugin-" "data"
 OLD_STORE_NAME = "reset" "watch"
@@ -137,6 +144,30 @@ def test_store_is_under_the_plugin_id_dir():
 # gate that forbids naming third parties -- does not carry the handle either: `plugin.yaml`'s `author`
 # field stays the one place the published tree names a person.
 MAINTAINER = "sk" "appafrost"
+
+
+def test_every_declared_version_is_the_released_one():
+    """Catalog rule 14: the version a plugin declares has to be the version its pinned code answers with.
+
+    Three shipped files state it and the CHANGELOG states it again for readers: `plugin.yaml` is what
+    `hermes plugins` prints and what the catalog entry pins, `dashboard/manifest.json` is the dashboard's
+    copy of the same claim, the page prints its own constant in the footer, and the changelog's top
+    section is the release record. Four places carrying three numbers is invisible to every other gate
+    here and fatal to the docs card, which quotes the pin as fact.
+    """
+    declared = [(f.relative_to(ROOT).as_posix(), i + 1, value)
+                for f, text in _tracked_text()
+                for i, line in enumerate(text.splitlines())
+                for pat in VERSION_FIELDS for value in re.findall(pat, line)]
+    assert len(declared) >= 3, declared
+    top = re.search(r"^## (\d+\.\d+\.\d+)", (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"),
+                    re.M).group(1)
+    wrong = [d for d in declared if d[2] != top]
+    assert wrong == [], "declared versions that are not %s: %r" % (top, wrong)
+    # The three fields are the load-bearing ones; a fourth file learning to declare a version is a
+    # decision, not an accident, so the set is named rather than counted.
+    assert {rel for rel, _, _ in declared} == {"plugin.yaml", "dashboard/manifest.json",
+                                              "desktop/plugin.js", "tests/page-under-test.mjs"}, declared
 
 
 def test_author_is_the_maintainer_and_names_no_third_party():

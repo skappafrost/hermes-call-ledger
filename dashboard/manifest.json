@@ -2,7 +2,7 @@
   "name": "hermes-call-ledger",
   "label": "Usage",
   "description": "Backend router for the Usage page: per-call log, day x model matrix, vilao bill sync.",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "tab": { "hidden": true },
   "api": "plugin_api.py"
 }

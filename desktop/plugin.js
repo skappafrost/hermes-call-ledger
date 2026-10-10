@@ -23,7 +23,7 @@ import { jsx, jsxs } from 'react/jsx-runtime'
 const PLUGIN_ID = 'hermes-call-ledger'
 const PLUGIN_NAME = 'Call Ledger'
 const ROUTE = '/call-ledger'
-const VERSION = '0.5.0'
+const VERSION = '1.0.0'
 const POLL_MS = 5 * 60 * 1000
 const TABS = ['live', 'trend', 'log', 'quota', 'wallet', 'keys', 'models']
 
