@@ -243,8 +243,9 @@ itself from, so the choice stays where it belongs: with the person installing.
   belongs to the account and the key that was billed, not to a profile.
 - **Money needs a rate to cross units, and says which rate it used.** Every conversion uses the rate
   `/fx` reports, and the page's footer names that rate's source: the public feed, a hand-set
-  `VILAO_USD_VND`, or the offline fallback the FX module keeps for a machine that reaches neither (labelled
-  as an old price). A figure that would need a conversion when there is no rate at all prints `—`.
+  `VILAO_USD_VND`, or a cached quote the module marks as an old price when the feed could not be reached.
+  With none of the three there is no rate: the rate line says so, and every figure that would need a
+  conversion prints `—`. Nothing in the tree invents a rate to print in its place.
 - **The Quota tab is measured, not reported.** It counts this store's own rows per provider; the free
   tiers most accounts lean on publish a request limit and no usage API, so no one else's number exists.
 

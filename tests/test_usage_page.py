@@ -701,19 +701,40 @@ def test_fx_cache_ttl_then_stale_fallback(tmp_path):
     assert fx.to_vnd(None, "USD", stale) is None
 
 
-def test_fx_hardcoded_rate_when_there_is_no_feed_and_no_cache(tmp_path):
-    """First run on a machine that cannot reach the rate endpoint still yields a labelled rate."""
-    os.environ["HERMES_HOME"] = str(tmp_path / "fresh")
-    sys.modules.pop("rw_fx_boot", None)
-    fx = _load("rw_fx_boot", PLUGIN_ROOT / "fx.py")
+def test_fx_reports_no_rate_when_there_is_no_feed_and_no_cache(tmp_path, monkeypatch):
+    """No cached rate and an unreachable feed is "no rate" -- never a number the module invented.
+
+    The rule this release is built on is that a crossing between units needs a rate the machine actually
+    has: with none, the estimate column prints an em dash and the footer says the rate is unknown. The
+    old fallback answered with a pinned dong figure beside ``source: "hardcoded"``, which is a fabricated
+    price wearing a quoted one's formatting, and every layer above the backend -- the printer, the page,
+    the README, the CHANGELOG -- was written for the rule. The backend was the one place still breaking
+    it, so the invented number goes and the cached/stale paths stay exactly as they were.
+    """
+    home = str(tmp_path / "fresh")
+    monkeypatch.setenv("HERMES_HOME", home)
+    for pin in ("VILAO_USD_VND", "VILAO_CNY_VND"):
+        monkeypatch.delenv(pin, raising=False)
+    sys.modules.pop("rw_fx_norate", None)
+    fx = _load("rw_fx_norate", PLUGIN_ROOT / "fx.py")
 
     def broken_fetch():
         raise RuntimeError("offline")
 
-    fx._fetch = broken_fetch
-    table = fx.rates()
-    assert table and table["stale"] is True and "hardcode" in table["source"]
-    assert table["usd_vnd"] > 20000, table
+    monkeypatch.setattr(fx, "_fetch", broken_fetch)
+    assert fx.cache_path() is not None and not fx.cache_path().exists(), "the premise is a cold cache"
+    assert fx.rates() is None, "a rate was reported that nothing quoted"
+    assert fx.to_vnd(2.0, "USD") is None, "an estimate was converted with no rate to convert at"
+    assert not hasattr(fx, "BOOTSTRAP_USD_VND"), "the invented dong figure is still in the module"
+    assert not hasattr(fx, "BOOTSTRAP_CNY_VND"), "the invented yuan figure is still in the module"
+
+    # The route is what the page reads: it answers "no rate", and the rate line prints the unknown.
+    api = _load("rw_fx_norate_route", PLUGIN_ROOT / "dashboard" / "plugin_api.py")
+    monkeypatch.setattr(api.fx, "_fetch", broken_fetch)
+    assert api.get_fx() == {"fx": None}, api.get_fx()
+
+    # A dong amount never needed a rate, and still does not: that is the display's own unit.
+    assert fx.to_vnd(1234.0, "VND") == 1234.0
 
 
 def test_plugin_api_loads_without_a_parent_package(tmp_path):

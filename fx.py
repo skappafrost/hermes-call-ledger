@@ -9,10 +9,11 @@ The cache file lives under ``plugin-data/fx/`` -- outside either plugin's own di
 both, because provider-usage and the Usage page convert the same money and must not disagree about the
 rate they printed. A read-only caller never writes.
 
-When the fetch fails the previous value keeps being served; a stale rate on a cosmetic conversion
-beats falling back to dollars on a page whose whole point is dong. With no cache at all the hardcoded
-:data:`BOOTSTRAP_USD_VND` is used and ``source`` says so, so the UI can be honest about which number it
-printed. ``VILAO_USD_VND`` (and optionally ``VILAO_CNY_VND``) pins the rate outright, feed skipped.
+When the fetch fails the previous value keeps being served, labelled stale: a rate a few hours behind
+beats falling back to dollars on a page whose whole point is dong. With neither a cache nor a feed there
+is no rate, and ``rates()`` says so by answering ``None`` -- a number this module invented is not a rate
+anybody quoted, so the money columns print an em dash instead of it. ``VILAO_USD_VND`` (and optionally
+``VILAO_CNY_VND``) pins the rate outright, feed skipped.
 """
 from __future__ import annotations
 
@@ -24,12 +25,6 @@ from typing import Any, Optional
 
 TTL_S = 6 * 3600.0
 ENDPOINT = "https://open.er-api.com/v6/latest/USD"
-# Fallbacks for a machine that cannot reach the endpoint at all. The dong figures here are pinned on
-# purpose, because a dong display that quietly reverts to
-# dollars whenever one host is down is worse than a rate a percent off. Setting ``VILAO_USD_VND`` pins
-# the rate through the environment instead, without touching this file.
-BOOTSTRAP_USD_VND = 26200.0
-BOOTSTRAP_CNY_VND = 3900.0
 
 
 def cache_path() -> Optional[Path]:
@@ -89,7 +84,9 @@ def _pinned() -> Optional[dict[str, Any]]:
 def rates(force: bool = False) -> Optional[dict[str, Any]]:
     """The rate table, refreshed when the cache is older than :data:`TTL_S`.
 
-    Returns ``None`` only when there is nothing to say: no cache, no fetch, no bootstrap.
+    Answers ``None`` when there is nothing to say -- no pin, no cache, no feed. That is an answer rather
+    than a failure: the caller prints a dash where a rate this module made up would print a plausible
+    wrong price.
     """
     pinned = _pinned()
     if pinned:
@@ -117,14 +114,7 @@ def rates(force: bool = False) -> Optional[dict[str, Any]]:
         out = dict(cached)
         out["stale"] = True
         return out
-    now = time.time()
-    return {
-        "usd_vnd": BOOTSTRAP_USD_VND,
-        "cny_vnd": BOOTSTRAP_CNY_VND,
-        "at": now,
-        "source": "hardcoded",
-        "stale": True,
-    }
+    return None
 
 
 def to_vnd(amount: Any, cur: Any, table: Optional[dict[str, Any]] = None) -> Optional[float]:
