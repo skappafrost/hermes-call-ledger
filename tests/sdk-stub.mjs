@@ -59,7 +59,14 @@ function pick(path) {
       language: globalThis.__stubSettingsLanguage || FIXTURES.settings.language,
       currency: globalThis.__stubSettingsCurrency || FIXTURES.settings.currency }
   }
-  if (p.startsWith('/catalog')) return FIXTURES.catalog
+  /* `__stubCatalogError` is the machine whose price-list read failed: the route answers 200 with zero
+   * offers and an `error` naming the fetch, which is the payload a Models tab has to describe honestly
+   * (the page is public and keyless, so a failed read is never the reader's filters). */
+  if (p.startsWith('/catalog')) return globalThis.__stubCatalogError
+    ? { count: 0, total: 0, models: [], watch: { days: [], count: 0 }, cached_at: 0,
+        source: 'https://vilao.ai/api/v1/llm/marketplace/models',
+        error: String(globalThis.__stubCatalogError) }
+    : FIXTURES.catalog
   if (p.startsWith('/topups')) return FIXTURES.topups
   if (p.startsWith('/log')) return p.includes('days=365') ? FIXTURES.logAll : FIXTURES.log
   if (p.startsWith('/sessions')) return FIXTURES.sessions

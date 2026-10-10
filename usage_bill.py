@@ -102,21 +102,34 @@ def _key_row(k: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _get(path: str, params: Optional[dict[str, Any]] = None) -> Any:
-    """One authenticated GET, returning the envelope's ``data``.
+def _checked_url(path: Any) -> str:
+    """The absolute URL to fetch, or a refusal raised before any credential is read.
 
-    ``path`` may be absolute: the model catalogue and the published prices live on the v1 marketplace host
-    rather than under ``/api/v2``, and this is the only place that knows how to authenticate a call.
+    ``path`` may be absolute: the model catalogue and the published prices live on the v1 marketplace
+    host rather than under ``/api/v2``.
 
-    The token is full-scope, so the destination is validated rather than trusted: an absolute URL only
-    counts if its host is the console's own and the scheme is https. Without that check, one caller
-    passing a string it built from a request parameter would hand a spend-capable credential to a third
-    party, and the plugin would look exactly the same in the logs.
+    The credential this module attaches is full-scope, so the destination is validated rather than
+    trusted: an absolute URL only counts if its host is the console's own and the scheme is https.
+    Without that check, one caller passing a string it built from a request parameter would hand a
+    spend-capable credential to a third party, and the plugin would look exactly the same in the logs.
+    The keyless path checks the same rule for the same reason -- an unauthenticated GET off the
+    allowlist is still a request this plugin did not decide to make.
     """
     url = str(path) if str(path).startswith("http") else BASE + str(path)
     host = urlsplit(url).netloc.lower()
     if not url.startswith("https://") or host.split(":", 1)[0] not in ALLOWED_HOSTS:
-        raise ValueError("refusing to send the PAT to a host other than the console: %r" % host)
+        raise ValueError("refusing to send a vilao request to a host other than the console: %r" % host)
+    return url
+
+
+def _get(path: str, params: Optional[dict[str, Any]] = None) -> Any:
+    """One authenticated GET, returning the envelope's ``data``.
+
+    Only for routes that require the token. The public pages -- the marketplace price list -- go through
+    :func:`public_get`, so a reader who has a PAT never sends one where it is not asked for, and a
+    reader who has none is not told the public page is unreachable.
+    """
+    url = _checked_url(path)
     token = pat()
     if not token:
         raise PermissionError("VILAO_PAT is not configured for this profile")
@@ -124,6 +137,21 @@ def _get(path: str, params: Optional[dict[str, Any]] = None) -> Any:
                      headers={"Authorization": "Bearer " + token})
     if resp.status_code in (401, 403):
         raise PermissionError("vilao rejected the PAT (HTTP %d)" % resp.status_code)
+    resp.raise_for_status()
+    return (resp.json() or {}).get("data")
+
+
+def public_get(path: str, params: Optional[dict[str, Any]] = None) -> Any:
+    """One unauthenticated GET of a page vilao serves to anyone, returning the envelope's ``data``.
+
+    Same https + host-allowlist rule as :func:`_get` -- keyless is not the same thing as unvalidated --
+    and the secret is never resolved on this path at all, so no request made here can carry it.
+    """
+    resp = httpx.get(_checked_url(path), params=params or {}, timeout=20.0)
+    if resp.status_code in (401, 403):
+        # A public page that answers 401 is not a page this module should be reading without a token;
+        # say so rather than falling back to the authenticated path and quietly attaching the PAT.
+        raise PermissionError("vilao refused the keyless request (HTTP %d)" % resp.status_code)
     resp.raise_for_status()
     return (resp.json() or {}).get("data")
 

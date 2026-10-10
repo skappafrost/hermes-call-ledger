@@ -1,7 +1,10 @@
 """Read-only views of what the vilao console knows, so the account can be run from Hermes.
 
-Transport is injected: the caller hands in ``usage_bill._get`` (one authenticated GET, absolute URLs
-allowed) rather than this module holding a second copy of the secret resolution and the retry rules.
+Transport is injected: the caller hands in the GET it wants -- ``usage_bill._get`` for the routes that
+need the account's token, ``usage_bill.public_get`` for the keyless marketplace page -- rather than this
+module holding a second copy of the secret resolution and the host rules. Which of the two a given
+reader gets is the caller's answer, and the catalogue's is the keyless one: the page it reads publishes
+its prices to anybody.
 
 Everything here is a GET. The token is full-scope (vilao issues one unscoped token per account, including
 ``wallet:write``), so no write endpoint is ever named in this file, and the surface is deliberately
@@ -109,6 +112,10 @@ def catalog(get: Callable[..., Any], force: bool = False) -> dict[str, Any]:
     This is the answer to "what could I route to, what is its context, what does it cost" -- the one thing
     the console shows that the plugin could not. It is keyless and changes slowly, so it is read at most
     four times a day and kept next to the store.
+
+    ``get`` has to be the keyless transport: every row here is on a page that answers without a token, so
+    an authenticated getter would make the price list a paid feature and send a full-scope credential
+    somewhere it is never asked for.
     """
     path = (cache_dir() / "catalog.json") if cache_dir() else None
     if path and not force:

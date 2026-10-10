@@ -227,11 +227,14 @@ const LOCALE_EN = {
     watchFallback: 'the day before',
     refresh: 'Reload the price list',
     refreshTitle: 'The price list is a public page, cached 6 hours; click to read it again now.',
-    readFail: 'Could not read the model list from vilao.',
+    readFail: 'Could not read the public price list from vilao. The page needs no token, so this is the '
+      + 'connection or vilao itself answering, not anything about your account.',
     offerNote: 'Each row is one offer: several providers sell the same model at different prices, which is '
       + 'why this table is longer than the number of models.',
     exportOffers: n => 'export the ' + n + ' filtered offers (all of them, not just this page)',
     empty: 'No offer matches these filters.',
+    noOffers: 'The price list came back with nothing on it. It is a public page and needs no token, so '
+      + 'this is the fetch failing rather than your filters — reload it, or check that vilao.ai answers.',
     link: 'vilao ↗',
     price: {
       newListed: 'just listed', delisted: 'delisted',
@@ -485,11 +488,14 @@ const LOCALE_VI = {
     watchFallback: 'hôm trước',
     refresh: 'Đọc lại bảng giá',
     refreshTitle: 'Bảng giá là trang công khai, cache 6 giờ; bấm để đọc lại ngay.',
-    readFail: 'Không đọc được bảng model từ vilao.',
+    readFail: 'Không đọc được bảng giá công khai từ vilao. Trang này không cần token, nên lỗi nằm ở kết '
+      + 'nối hoặc phía vilao trả lời — không phải ở tài khoản của bạn.',
     offerNote: 'Mỗi dòng là một offer: cùng một model có nhiều provider bán với giá khác nhau, đó là lý do '
       + 'bảng này dài hơn số model.',
     exportOffers: n => 'xuất ' + n + ' offer đang lọc (toàn bộ, không chỉ trang này)',
     empty: 'Không offer nào khớp bộ lọc.',
+    noOffers: 'Bảng giá trả về không có offer nào. Đây là trang công khai và không cần token, nên lỗi ở '
+      + 'lần đọc trang chứ không phải bộ lọc của bạn — đọc lại, hoặc kiểm tra vilao.ai có trả lời không.',
     link: 'vilao ↗',
     price: {
       newListed: 'mới bán', delisted: 'ngừng bán',
@@ -2300,7 +2306,10 @@ function ModelsTab() {
       rows.length ? jsx(Grid, { cols, rows: slice, sort, onSort: setSort,
         keyOf: m => m.key || (m.provider + '/' + m.id), maxHeight: 620,
         empty: t('models.empty') }) : jsx('div', { style: { ...faint, padding: 10 },
-        children: cat.isFetching ? t('models.loading') : t('models.empty') }),
+        /* Two different nothings. A failed read of the public price list is this page's problem; blame
+         * the reader's filters for it and they go hunting for a filter they never set. */
+        children: cat.isFetching ? t('models.loading')
+          : cat.isError || (cat.data && cat.data.error) ? t('models.noOffers') : t('models.empty') }),
       jsx(Pager, { data: { total: rows.length, page: current, pages, per: MODELS_PER }, onPage: setPage })
     ] })
   ] })

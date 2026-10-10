@@ -137,6 +137,24 @@ for (const [label, currency, own, forbidden] of [
 delete globalThis.__stubNoFx
 delete globalThis.__stubSettingsCurrency
 
+/* The Models tab when the price list could not be read. The catalogue is a public page and this plugin
+ * fetches it without a credential, so the only honest causes are "vilao did not answer" or "the search
+ * excluded every offer" -- and the copy has to tell those two apart. A tab that answers a failed fetch
+ * with "No offer matches these filters" sends a reader with no billing provider off to hunt for a filter
+ * they never set. The assertions read the bundle rather than repeating a sentence, so they outlive any
+ * rewording and still fail if the two states collapse back into one message. */
+globalThis.__stubCatalogError = 'catalog unreachable: connect timeout'
+page.setLang('en')
+const noCatalog = renderToString(jsx(page.ModelsTab, {}))
+const blamedFilters = noCatalog.includes(page.LOCALE_EN.models.empty)
+const namedTheFetch = noCatalog.includes(page.LOCALE_EN.models.noOffers)
+console.log('price list unread, not filter-blaming'
+  + (blamedFilters || !namedTheFetch ? ' SUSPECT the tab blamed the reader for a fetch that failed' : 'ok'))
+if (blamedFilters || !namedTheFetch) {
+  SUSPECTS.push('Models: an unread price list was reported as the reader\'s filters')
+}
+delete globalThis.__stubCatalogError
+
 const fails = globalThis.__renderFailures || []
 
 /* The resolution itself, proven behaviourally rather than by reading the source. A `Page` whose app

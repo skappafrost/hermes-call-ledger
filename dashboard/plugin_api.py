@@ -215,16 +215,21 @@ def get_rate(hours: float = 24.0, profile: Optional[str] = None) -> dict[str, An
 
 @router.get("/catalog")
 def get_catalog(refresh: bool = False, q: Optional[str] = None) -> dict[str, Any]:
-    """The model catalogue with the account's own spend next to each price, when ``ids`` is given.
+    """The model catalogue with the account's own spend next to each price, when the store has any.
 
     The join against the store is unconditional: a price list on its own answers "what does it cost",
     and the question in front of the user is "what do *I* pay for the models I actually reach for".
+
+    The catalogue itself needs no credential and no bill: it is the marketplace's public page, so this
+    route answers for a reader who has never configured a billing provider.
 
     The join against the model rollup is what used to make this 79 ms; with the day x model table it is a
     few hundred rows, so no cache is needed and ``refresh=1`` still means "re-read the catalogue now".
     """
     def build() -> dict[str, Any]:
-        data = rd.catalog(bill._get, force=bool(refresh))
+        # The price list is a public page: fetched keyless, so a reader without a PAT gets it and a
+        # reader with one does not send a spend-capable token where nothing asked for it.
+        data = rd.catalog(bill.public_get, force=bool(refresh))
         rows = data.get("models") or []
         used = {str(r.get("model_key")): r for r in store.usage_by_model()}
         for m in rows:

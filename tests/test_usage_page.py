@@ -1031,6 +1031,99 @@ def test_bill_get_will_not_carry_the_token_offsite():
         bill.httpx.get = real
 
 
+class _Envelope:
+    """A fake httpx response in the shape both vilao pages answer with: an envelope holding ``data``."""
+
+    status_code = 200
+
+    def __init__(self, data):
+        self._data = data
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return {"data": self._data}
+
+
+def test_the_public_price_list_is_fetched_without_a_credential(monkeypatch):
+    """The marketplace page needs no token, so no token may ever be attached to it.
+
+    Two different failures lived in that one rule, and both are the reader's. Someone who HAS a PAT was
+    sending a full-scope, spend-capable credential to a route that never asks for one; someone with NO
+    PAT could not read the price list at all, because the authenticated client raises before it starts.
+    """
+    bill = _load("rw_bill_keyless", PLUGIN_ROOT / "usage_bill.py")
+    seen = []
+
+    def spy(url, params=None, **kw):
+        seen.append((url, params, kw))
+        return _Envelope([{"model_id": "glm-5.3", "provider_prefix": "dogi"}])
+
+    def no_secret_lookup():
+        raise AssertionError("the keyless fetch resolved the PAT")
+
+    monkeypatch.setattr(bill.httpx, "get", spy)
+    monkeypatch.setattr(bill, "pat", no_secret_lookup)
+
+    data = bill.public_get("https://vilao.ai/api/v1/llm/marketplace/models", {"page": 1, "limit": 100})
+
+    assert data == [{"model_id": "glm-5.3", "provider_prefix": "dogi"}], data
+    url, params, kw = seen[0]
+    assert url == "https://vilao.ai/api/v1/llm/marketplace/models", url
+    assert params == {"page": 1, "limit": 100}, params
+    headers = kw.get("headers") or {}
+    assert not any(str(k).lower() == "authorization" for k in headers), headers
+    # The same https + host rules as the authenticated path: keyless is not the same as unvalidated.
+    for bad in ("https://evil.example/api/v1/llm/marketplace/models",
+                "http://vilao.ai/api/v1/llm/marketplace/models",
+                "https://vilao.ai.evil.example/x"):
+        try:
+            bill.public_get(bad)
+        except ValueError:
+            continue
+        raise AssertionError("accepted %r" % bad)
+    assert len(seen) == 1, seen
+
+
+def test_the_models_route_answers_with_no_pat_at_all(tmp_path, monkeypatch):
+    """No credential is a working Models tab, not an unreachable catalogue.
+
+    This is the shape a reviewer tests first: a fresh home, no billing account, open the price list. The
+    route used to hand the catalogue ``bill._get``, which raises PermissionError for want of a token and
+    came back as zero offers beside "catalog unreachable" -- a headline public feature dead for exactly
+    the readers the README tells them it still works for.
+    """
+    _close_everything()
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.delenv("VILAO_PAT", raising=False)
+    api = _load("rw_api_catalog_nokey", PLUGIN_ROOT / "dashboard" / "plugin_api.py")
+    # The premise, asserted rather than assumed: this profile genuinely has no token.
+    assert api.bill.pat() is None
+
+    offers = [{"model_id": "glm-5.3", "provider_prefix": "dogi", "price_per_input_token": 100.0,
+               "price_per_output_token": 300.0, "max_context_length": 200000},
+              {"model_id": "gpt-6-astra", "provider_prefix": "cx", "price_per_input_token": 250.0,
+               "price_per_output_token": 1000.0, "max_context_length": 400000}]
+    seen = []
+
+    def spy(url, params=None, **kw):
+        seen.append((url, kw))
+        return _Envelope([] if (params or {}).get("page", 1) > 1 else offers)
+
+    monkeypatch.setattr(api.bill.httpx, "get", spy)
+
+    got = api.get_catalog()
+
+    assert got["error"] is None, got
+    assert got["count"] == 2, got
+    assert [m["key"] for m in got["models"]] == ["dogi/glm-5.3", "cx/gpt-6-astra"], got["models"]
+    assert seen, "the catalogue was never fetched"
+    assert all(u.startswith("https://vilao.ai/api/v1/llm/marketplace/models") for u, _ in seen), seen
+    assert not any(str(k).lower() == "authorization"
+                   for _, kw in seen for k in (kw.get("headers") or {})), seen
+
+
 def test_the_rollup_rebuilds_when_it_disagrees_with_the_calls(tmp_path):
     """No memo any more: the rollup is the cache, so it has to prove itself against the raw rows.
 
