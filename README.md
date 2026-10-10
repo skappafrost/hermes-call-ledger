@@ -185,10 +185,11 @@ line instead of rendering a blank card:
   the tabs print their read-failure line ("Could not read the vilao wallet: …", "Could not read the key
   list."). The Wallet tab's stat cards have no figure to show, so they read 0 and its running-low card
   appears — that card is a consequence of having no balance to read, not a warning about your account.
-- **Models** is the part that does not need a vendor: the marketplace price list is a public page and
-  this plugin fetches it without a credential at all, so every offer and every list price arrives with no
-  billing provider configured. The columns beside them that come from your invoice read 0 for the same
-  reason the billed totals do — the store holds no bill rows.
+- **Models** keeps working, because the price list is a public page: the plugin fetches it on its own
+  unauthenticated path, so with no `VILAO_PAT` the offers and their list prices still arrive. What has
+  nothing to show is the pair of columns computed from your own billing -- "you paid" and "dong/1M you
+  paid" read 0 for an offer that matches a logged call and a dash for one that does not, because the
+  store holds no bill rows.
 - Every money figure that would have come from the invoice is absent. Per-row money cells fall back to
   Hermes' USD estimate — converted at the published rate when one is available, and tagged `est` so it is
   never mistaken for a charge — or print a dash where there is no estimate either. Billed totals read 0,
