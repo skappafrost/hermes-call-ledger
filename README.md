@@ -10,13 +10,9 @@ it, and the two feeds are kept apart rather than averaged: every row says whethe
 log, from the bill, or was matched between the two. It installs as one Desktop route with seven tabs, in
 English or Vietnamese, in dong or dollars.
 
-![The live tab: the newest calls, their filters and the totals strip](docs/banner.png)
-
-![Live: every call, newest first, paged and filterable](docs/live.png)
-
-![Trend: a year as a grid, one square per day, shaded by what the day cost](docs/trend.png)
-
-![Models: the marketplace offer list with the price you paid beside the list price](docs/models.png)
+Screenshots of the tabs follow in a later release: this one ships without them, and its catalog entry
+declares no `image:` or `screenshots:` field, so nothing here points at a picture that is not in the
+repository.
 
 The seven tabs:
 

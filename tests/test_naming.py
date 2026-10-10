@@ -152,6 +152,27 @@ def test_store_is_under_the_plugin_id_dir():
 MAINTAINER = "sk" "appafrost"
 
 
+def test_the_readme_cites_only_images_the_repository_ships():
+    """A README image is a promise the repository has to keep.
+
+    The catalog's docs page renders the README at the pinned sha and fetches every image target it finds
+    there, so four citations of ``docs/*.png`` that no commit ever wrote were four broken tiles on the page
+    a reader uses to decide whether to install -- and a screenshot that does not exist is a claim about a
+    picture nobody has taken. The durable rule is the first assertion: a cited relative path has to be a
+    file in the tree. The second pins today's truth, that this release ships no image at all, in the same
+    named-rather-than-counted style the rest of this file uses: adding one is a decision somebody has to
+    make twice, once in the repository and once here. Creating ``docs/`` with a placeholder to satisfy a
+    citation is the move both assertions exist to refuse.
+    """
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    cited = re.findall(r"!\[[^\]]*\]\(([^)\s]+)", readme)
+    missing = [c for c in cited
+               if not c.startswith(("http://", "https://")) and not (ROOT / c).is_file()]
+    assert missing == [], "README images that are not files in this repository: %r" % (missing,)
+    assert cited == [], "this release ships no images; the README says screenshots follow: %r" % (cited,)
+    assert not (ROOT / "docs").is_dir(), "a docs/ tree is not part of this release"
+
+
 def test_no_shipped_line_points_at_a_surface_this_release_does_not_provide():
     """A reader following a sentence in this plugin must land inside this plugin.
 
