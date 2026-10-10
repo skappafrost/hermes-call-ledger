@@ -19,6 +19,17 @@ FORBIDDEN = ("hermes-reset" "watch", "PLUGIN_" "NAME = 'Usage'", "/" "reset" "wa
 # before the rename. Those files are the only record of charges from that period, so dropping the pattern
 # would silently lose history. Only that exact spelling, with the marker on its own line, is whitelisted.
 LEGACY_OK = "pre-rename stores"
+# The upstream plugin's catalog id, assembled from pieces so this file is not a hit for it either.
+UPSTREAM_ID = "hermes-reset" "watch"
+# Lineage and coexistence are README copy: the catalog's admission rule wants the upstream project named,
+# and a reader choosing between two plugins that register the same three hooks needs the id in order to
+# remove one. That is prose *about* a third party, which is not what this gate hunts -- it exists to catch
+# this plugin still addressing itself by the old name (id, route, store dir), and those stay forbidden
+# everywhere, README included: only this one token, in this one file, is exempted, and the number of
+# exempted lines is locked below so a mention cannot spread unnoticed.
+DOC_LINEAGE_FILE = "README.md"
+DOC_LINEAGE_TOKENS = (UPSTREAM_ID,)
+DOC_LINEAGE_LINES = 5
 # The old store directory, assembled from pieces so that this file is not a hit for its own count.
 STORE_DIR = "plugin-" "data"
 OLD_STORE_NAME = "reset" "watch"
@@ -50,17 +61,30 @@ def test_no_private_identity_survives():
     reintroduced the plugin id or the old route and passed this gate and the count test below both. So a
     line is exempt only when it names the old store directory *and* carries the marker, and there is
     exactly one such line -- the reader glob that still imports stores written before the rename.
+
+    The second, narrower exemption is the README's lineage prose: only the upstream catalog id, only in
+    that file, only the locked number of lines. An old route or the old store directory in the README is
+    still a failure, not an exemption.
     """
-    exempt, bad = [], []
+    exempt, lineage, bad = [], [], []
     for f, text in _tracked_text():
+        rel = f.relative_to(ROOT).as_posix()
         for i, line in enumerate(text.splitlines()):
-            if not any(b in line for b in FORBIDDEN):
+            found = [b for b in FORBIDDEN if b in line]
+            if not found:
                 continue
-            where = (f.relative_to(ROOT).as_posix(), i + 1)
-            (exempt if LEGACY_STORE in line and LEGACY_OK in line else bad).append(where)
+            where = (rel, i + 1)
+            if rel == DOC_LINEAGE_FILE and all(b in DOC_LINEAGE_TOKENS for b in found):
+                lineage.append(where)
+            elif LEGACY_STORE in line and LEGACY_OK in line:
+                exempt.append(where)
+            else:
+                bad.append(where)
     assert bad == [], bad
     assert len(exempt) == 1, exempt
     assert exempt[0][0] == "usage_store.py", exempt
+    assert len(lineage) == DOC_LINEAGE_LINES, lineage
+    assert {rel for rel, _ in lineage} == {DOC_LINEAGE_FILE}, lineage
 
 
 def test_the_old_store_dir_is_named_exactly_where_the_history_needs_it():
