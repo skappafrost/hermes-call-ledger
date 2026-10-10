@@ -240,9 +240,11 @@ const LOCALE_EN = {
     link: 'vilao ↗',
     price: {
       newListed: 'just listed', delisted: 'delisted',
-      /* The field name is the machine value the price watch recorded, so it comes through as given. */
+      /* The watch records which price of an offer moved as a machine key; the label is the reader's, so
+       * it is looked up here rather than printed from the payload. */
       move: (pct, field) => pct + ' ' + field
     },
+    field: { in: 'input', out: 'output', cache: 'cache', floor: 'floor' },
     col: {
       model: 'model', provider: 'provider', kind: 'kind', context: 'context', priceIn: 'input price',
       priceOut: 'output price', cacheRead: 'cache read', floor: 'floor/call', success: 'success',
@@ -505,6 +507,7 @@ const LOCALE_VI = {
       newListed: 'mới bán', delisted: 'ngừng bán',
       move: (pct, field) => pct + ' ' + field
     },
+    field: { in: 'vào', out: 'ra', cache: 'cache', floor: 'sàn' },
     col: {
       model: 'model', provider: 'provider', kind: 'loại', context: 'ngữ cảnh', priceIn: 'giá vào',
       priceOut: 'giá ra', cacheRead: 'cache đọc', floor: 'sàn/lượt', success: 'thành công',
@@ -2036,13 +2039,21 @@ const MODELS_PER = 100
  * row has no billed mass: the page would otherwise print a number that means "nothing measured". */
 /* The price watch names the field that moved instead of averaging the offer's prices into one number:
  * a list-price cut and a cache-price rise are different decisions to make about an offer. */
+/* Machine key to reader's word. A key neither bundle labels comes back as itself: an unlabelled field is
+ * a payload this page has not been told about, and 'in' on screen beats the lookup path or a blank. */
+function fieldName(f) {
+  const key = 'models.field.' + f
+  const label = t(key)
+  return label === key ? String(f) : label
+}
+
 function priceDelta(m) {
   const chg = (m && m.chg) || []
   if (!chg.length) return '—'
   const first = chg.find(c => c.kind === 'price')
   if (!first) return chg[0].kind === 'new' ? t('models.price.newListed') : t('models.price.delisted')
   const pct = Number(first.pct) || 0
-  return t('models.price.move', (pct > 0 ? '+' : '') + Math.round(pct) + '%', first.field)
+  return t('models.price.move', (pct > 0 ? '+' : '') + Math.round(pct) + '%', fieldName(first.field))
 }
 
 function effectivePrice(m) {
@@ -2131,12 +2142,13 @@ function MODEL_COLS() {
       } },
     { label: t('models.col.change'), width: '104px', align: 'right', num: true,
       sort: m => (m.chg ? Math.max(...m.chg.map(c => Math.abs(Number(c.pct) || 0))) : -1),
-      raw: m => (m.chg || []).map(c => c.field + ':' + (c.pct == null ? c.kind : Math.round(c.pct) + '%'))
+      raw: m => (m.chg || []).map(c => fieldName(c.field) + ':' + (c.pct == null ? c.kind : Math.round(c.pct) + '%'))
         .join(' '),
       title: m => t('models.col.changeHead') + '\n'
         + (m.chg || []).map(c => c.kind === 'new' ? t('models.col.newOffer')
           : c.kind === 'gone' ? t('models.col.goneOffer')
-            : t('models.col.changeLine', c.field, dong(Math.round(c.from)), dong(Math.round(c.to)),
+            : t('models.col.changeLine', fieldName(c.field), dong(Math.round(c.from)),
+              dong(Math.round(c.to)),
               (c.pct > 0 ? '+' : '') + Math.round(c.pct) + '%')).join('\n'),
       style: m => (m.chg ? { color: ACCENT, fontWeight: 600 } : faint),
       render: m => priceDelta(m) },

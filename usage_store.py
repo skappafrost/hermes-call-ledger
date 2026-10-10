@@ -1201,7 +1201,9 @@ def catalog_changes() -> dict[str, Any]:
         "SELECT key, model_key, provider, price_in, price_out, cache_read, floor FROM catalog_prices"
         " WHERE day=?", (older,))}
     seen = set()
-    fields = (("price_in", "vào"), ("price_out", "ra"), ("cache_read", "cache"))
+    # Machine keys, not labels: the watch's payload is read by whichever bundle the reader is looking at,
+    # and a Vietnamese word baked in here used to sail straight through the English page as "-52% vào".
+    fields = (("price_in", "in"), ("price_out", "out"), ("cache_read", "cache"))
     for r in conn.execute(
             "SELECT key, model_key, provider, price_in, price_out, cache_read, floor FROM catalog_prices"
             " WHERE day=?", (newer,)):
@@ -1224,7 +1226,7 @@ def catalog_changes() -> dict[str, Any]:
                 and abs(float(before["floor"]) - float(r["floor"])) > 1e-12:
             a, b = float(before["floor"]), float(r["floor"])
             out["rows"].append({"key": r["key"], "model_key": r["model_key"],
-                                "provider": r["provider"], "kind": "price", "field": "sàn",
+                                "provider": r["provider"], "kind": "price", "field": "floor",
                                 "from": a, "to": b, "pct": (b - a) / a * 100.0 if a else None})
     for key, before in prev.items():
         if key not in seen:

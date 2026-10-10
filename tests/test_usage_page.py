@@ -1052,6 +1052,31 @@ def test_the_price_watch_only_answers_if_yesterday_was_written_down(tmp_path):
     assert {"new", "gone", "price"} <= kinds, sorted(kinds)
 
 
+def test_the_price_watch_emits_machine_keys_not_reader_words(tmp_path):
+    """The payload names a price in the machine's vocabulary; the bundle decides what the reader sees.
+
+    This is the seam that leaked: the watch used to record ``vào`` / ``ra`` / ``sàn`` as the field value,
+    and the English page interpolated it raw, so an English reader got "-52% vào". No literal scan can
+    catch that shape -- the Vietnamese never sat in a shipped source file, it arrived in a response -- so
+    the gate is the enumeration itself: the keys Python may emit, all ASCII, and every one of them
+    labelled in both bundles (tests/ui_units.mjs holds the other half).
+    """
+    store, _bill = fresh_store(str(tmp_path))
+    now = time.time()
+    yesterday = store.day_of(now - 86400)
+    offer = {"key": "dogi/glm-5.3", "id": "glm-5.3", "provider": "dogi", "in": 200.0, "out": 1000.0,
+             "cache_read": 100.0, "context": 1000000, "floor": 5.0, "promo_off": 0}
+    store.record_catalog([offer])
+    conn = store._connect(store.store_path())
+    conn.execute("UPDATE catalog_prices SET day=?", (yesterday,))
+    # every price of the offer moves at once, so all four field keys are exercised by one snapshot pair
+    store.record_catalog([dict(offer, **{"in": 220.0, "out": 1100.0, "cache_read": 120.0, "floor": 6.0})])
+    emitted = {c["field"] for c in store.catalog_changes()["rows"]}
+    assert emitted <= {"in", "out", "cache", "floor", ""}, sorted(emitted)
+    assert {"in", "out", "cache", "floor"} <= emitted, sorted(emitted)
+    assert all(f.isascii() for f in emitted), sorted(emitted)
+
+
 def test_route_refuses_a_key_id_that_is_not_an_id():
     """key_id is pasted into an endpoint path this module authenticates with a spend-capable token."""
     api = _load("rw_api_keys", PLUGIN_ROOT / "dashboard" / "plugin_api.py")

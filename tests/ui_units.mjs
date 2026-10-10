@@ -80,11 +80,26 @@ check('effective price is per 1M billed tokens', ui.effectivePrice({ mine: { don
 check('no change is a dash', ui.priceDelta({}) === '—')
 check('new offer reads as just listed', ui.priceDelta({ chg: [{ kind: 'new' }] }) === 'just listed')
 check('delisted reads as delisted', ui.priceDelta({ chg: [{ kind: 'gone' }] }) === 'delisted')
-/* The field name is the machine value the price watch recorded (usage_store.py), so the English message
- * carries it through rather than inventing a translation the store never wrote. */
-check('a price move names the field', ui.priceDelta({ chg: [{ kind: 'price', field: 'vào', pct: -52.4 }] }) === '-52% vào',
-  ui.priceDelta({ chg: [{ kind: 'price', field: 'vào', pct: -52.4 }] }))
-check('a rise carries the plus', ui.priceDelta({ chg: [{ kind: 'price', field: 'ra', pct: 8.9 }] }) === '+9% ra')
+/* The watch sends machine keys (usage_store.py: in / out / cache / floor) and the bundle owns the word.
+ * The old version of these checks asserted 'vào' came out of the ENGLISH bundle, because that is what the
+ * store used to send -- a gate that had memorised the bug. Both halves of the seam are pinned here: every
+ * key the store can emit has a label in both locales, and a key nobody labelled degrades to itself rather
+ * than to the lookup path. */
+const WATCH_KEYS = ['in', 'out', 'cache', 'floor']
+const EN_LABELS = { in: 'input', out: 'output', cache: 'cache', floor: 'floor' }
+const VI_LABELS = { in: 'vào', out: 'ra', cache: 'cache', floor: 'sàn' }
+ui.setLang('en')
+WATCH_KEYS.forEach(k => check('en labels the watch key ' + k,
+  ui.priceDelta({ chg: [{ kind: 'price', field: k, pct: -52.4 }] }) === '-52% ' + EN_LABELS[k],
+  ui.priceDelta({ chg: [{ kind: 'price', field: k, pct: -52.4 }] })))
+ui.setLang('vi')
+WATCH_KEYS.forEach(k => check('vi labels the watch key ' + k,
+  ui.priceDelta({ chg: [{ kind: 'price', field: k, pct: -52.4 }] }) === '-52% ' + VI_LABELS[k],
+  ui.priceDelta({ chg: [{ kind: 'price', field: k, pct: -52.4 }] })))
+check('an unlabelled key survives as itself, not as a lookup path',
+  ui.priceDelta({ chg: [{ kind: 'price', field: 'mystery', pct: 3.2 }] }) === '+3% mystery',
+  ui.priceDelta({ chg: [{ kind: 'price', field: 'mystery', pct: 3.2 }] }))
+ui.setLang('en')
 
 /* --- paging --------------------------------------------------------------------------- */
 check('one page lists one page', ui.pageList(1, 1).join() === '1')
