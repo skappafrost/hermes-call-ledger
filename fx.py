@@ -5,9 +5,8 @@ this surface shows has to be converted somewhere to be readable in dong. ``open.
 ExchangeRate-API endpoint, no key, no account) republishes once a day, so the cache is refreshed on a
 6-hour TTL: four reads a day at most, and the rate is never more than a few hours behind.
 
-The cache file lives under ``plugin-data/fx/`` -- outside either plugin's own directory and shared by
-both, because provider-usage and the Usage page convert the same money and must not disagree about the
-rate they printed. A read-only caller never writes.
+The rate is fetched once and kept on disk, so the surfaces in this plugin that print dong all read one
+number instead of each asking the feed for its own. A read-only caller never writes.
 
 When the fetch fails the previous value keeps being served, labelled stale: a rate a few hours behind
 beats falling back to dollars on a page whose whole point is dong. With neither a cache nor a feed there

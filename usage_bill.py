@@ -1,8 +1,8 @@
 """Vilao billing client: the real-dong side of the Usage page.
 
 Only GETs. The account's Personal Access Token is full-scope (vilao issues one token per account
-with no scoping, including ``wallet:write``), so this module never posts anything and reads the
-secret through the same path provider-usage uses.
+with no scoping, including ``wallet:write``), so this module never posts anything and resolves the
+secret through :func:`pat` -- the agent's secret scope first, the acting home's ``.env`` second.
 """
 from __future__ import annotations
 

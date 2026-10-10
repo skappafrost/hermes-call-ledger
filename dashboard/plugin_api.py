@@ -190,8 +190,8 @@ def get_fx() -> dict[str, Any]:
     """USD and yuan spot rates, for turning Hermes' dollar estimates into the dong the account spends.
 
     Separate from ``/calls`` because the page wants it once per session while the log refills every
-    few minutes, and the shared cache file means provider-usage's status bar and this page cannot
-    disagree about the rate they print.
+    few minutes, and one cached rate means every money column the page draws converts at the number
+    the backend answered with.
     """
     return {"fx": fx.rates()}
 

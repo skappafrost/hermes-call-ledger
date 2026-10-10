@@ -163,7 +163,9 @@ const LOCALE_EN = {
     keysHeader: 'Your vilao API keys · the 24 h column comes from the synced call log',
     exportKeys: 'export every key shown',
     noKeys: 'This account has no API keys yet.',
-    quotaNote: 'Each provider quota and reset window still lives in the status-bar popover (Provider Usage).',
+    quotaNote: 'The reset windows this page reads are the per-key budgets and dates under Keys. The Quota '
+      + 'tab measures request rate from these rows, because no billing route here publishes a provider '
+      + 'quota window.',
     topupTitle: paid => 'Top-up history · total paid ' + paid,
     topupAccount: (name, about) => 'account ' + name + (about ? ' · ' + about : ''),
     topupRole: r => 'role ' + r,
@@ -424,7 +426,9 @@ const LOCALE_VI = {
     keysHeader: 'API key của bạn trên vilao · cột “24 h” lấy từ log cuộc gọi đã sync',
     exportKeys: 'xuất toàn bộ key đang hiển thị',
     noKeys: 'Chưa có API key nào trên tài khoản.',
-    quotaNote: 'Cửa sổ quota/reset của từng provider vẫn nằm ở popover trên status bar (Provider Usage).',
+    quotaNote: 'Cửa sổ reset mà trang này đọc được là ngân sách và mốc reset theo từng key, xem ở tab Key. '
+      + 'Tab Hạn mức đo nhịp gọi từ chính các dòng này, vì không có route tính phí nào ở đây công bố cửa '
+      + 'sổ quota của provider.',
     topupTitle: paid => 'Lịch sử nạp tiền · tổng đã trả ' + paid,
     topupAccount: (name, about) => 'tài khoản ' + name + (about ? ' · ' + about : ''),
     topupRole: r => 'vai ' + r,
@@ -871,7 +875,7 @@ function useSessions(days) {
 
 const FX_KEY = ['usage', 'fx']
 /* The conversion table is read once and kept for the session: the backend holds the real cache (six
- * hours) in the same file provider-usage reads, so a refetch here is a disk read, not an API call.
+ * hours) in the acting home's own file, so a refetch here is a disk read, not another call to the feed.
  * Page writes the rate into MONEY during render (see the money printer above), so the formatters that
  * have no props to take it through still print the rate the backend answered with. */
 function useFx() {
@@ -2146,9 +2150,9 @@ function MODEL_COLS() {
 }
 
 /* Which columns are hidden is a preference, not a layout bug: the offer table is 14 columns wide and
- * the default view drops the three nobody compares by eye. Persisted through the host's own storage
- * (the same mechanism the status-bar plugin uses for its refresh cadence) rather than localStorage,
- * because that is the surface the app guarantees a plugin can write. */
+ * the default view drops the three nobody compares by eye. Persisted through the host's own plugin
+ * storage door rather than localStorage, because that is the surface the app guarantees a plugin can
+ * write, and the one that scopes the value to this plugin. */
 const COLS_PREF = 'models-cols'
 
 let pref = null

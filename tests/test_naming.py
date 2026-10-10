@@ -30,6 +30,12 @@ UPSTREAM_ID = "hermes-reset" "watch"
 DOC_LINEAGE_FILE = "README.md"
 DOC_LINEAGE_TOKENS = (UPSTREAM_ID,)
 DOC_LINEAGE_LINES = 5
+# Surfaces a reader of this release cannot reach: the status-bar quota popover and the plugin that owns it
+# belong to the private fork the design doc keeps out of the catalog. Shipped copy that ends there is a
+# sentence that goes nowhere on the reader's machine, and a comment that says it is where the next copy
+# line comes from. Split so this gate is not a hit for its own list.
+UNSHIPPED_SURFACES = ("provider-" "usage", "provider " "usage", "status-" "bar popover",
+                      "status " "bar popover")
 # The two spellings a shipped file uses to declare its version: the manifest/manifest-like `version`
 # field, and the JS constant the page prints in its footer. The second is assembled out of pieces for the
 # same reason the forbidden tokens are -- spelled as one literal anywhere in this file, including in this
@@ -144,6 +150,26 @@ def test_store_is_under_the_plugin_id_dir():
 # gate that forbids naming third parties -- does not carry the handle either: `plugin.yaml`'s `author`
 # field stays the one place the published tree names a person.
 MAINTAINER = "sk" "appafrost"
+
+
+def test_no_shipped_line_points_at_a_surface_this_release_does_not_provide():
+    """A reader following a sentence in this plugin must land inside this plugin.
+
+    The status-bar quota popover belongs to the private fork the design doc keeps out of the catalog, so
+    the Wallet tab's note that sent readers there was a pointer to nothing on their machine -- and the
+    same claim repeated in comments is where the next copy line would come from. Bundles, comments, docs
+    and fixtures are all scanned: the exemption is empty, because this release provides no other surface
+    to name.
+    """
+    hits = []
+    for f, text in _tracked_text():
+        rel = f.relative_to(ROOT).as_posix()
+        for i, line in enumerate(text.splitlines()):
+            low = line.lower()
+            for token in UNSHIPPED_SURFACES:
+                if token.lower() in low:
+                    hits.append((rel, i + 1, token))
+    assert hits == [], hits
 
 
 def test_every_declared_version_is_the_released_one():
