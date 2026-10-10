@@ -1,7 +1,7 @@
 {
   "name": "hermes-call-ledger",
-  "label": "Usage",
-  "description": "Backend router for the Usage page: per-call log, day x model matrix, vilao bill sync.",
+  "label": "Call Ledger",
+  "description": "Backend router for the Call Ledger page: per-call log, day x model matrix, bill sync.",
   "version": "1.0.0",
   "tab": { "hidden": true },
   "api": "plugin_api.py"

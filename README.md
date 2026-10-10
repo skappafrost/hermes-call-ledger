@@ -109,7 +109,9 @@ cannot see from a diff.
   `test_bill_get_will_not_carry_the_token_offsite` covers an unrelated host, plain http, and the
   suffix-confusion case `vilao.ai.evil.example`. The two other authenticated call sites build their URLs
   from the module constant, so no request parameter can steer the host, and a key id interpolated into a
-  path is matched against a uuid-shaped pattern first.
+  path is matched against `^[A-Za-z0-9_-]{1,64}$` first — not a UUID shape, a slug: it refuses the
+  characters that would matter here (`/`, `.`, `?`, `&`, whitespace, `..`), which is what stops an id from
+  turning into `../usage` or a query string.
 - **One secret, read one way.** `VILAO_PAT` through Hermes' own secret scope
   (`agent.secret_scope.get_secret`), falling back to the home's `.env` line. Errors name the variable or
   the HTTP status, never the value, and no route returns it. Two optional variables pin the FX rate
