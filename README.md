@@ -97,8 +97,9 @@ cannot see from a diff.
 
 - **Two outbound hosts, GET only.** `https://vilao.ai/api/v2` (wallet balance, per-request usage ledger,
   the account's keys and their price books, top-up history) and
-  `https://vilao.ai/api/v1/llm/marketplace/models` (the public price list — a keyless page, read through
-  the same client), plus `https://open.er-api.com/v6/latest/USD` for the USD→VND rate (keyless, cached,
+  `https://vilao.ai/api/v1/llm/marketplace/models` (the public price list — a keyless page, fetched on its
+  own unauthenticated path, so the access token never goes to it), plus
+  `https://open.er-api.com/v6/latest/USD` for the USD→VND rate (keyless, cached,
   refreshed on a 6-hour TTL at most). Nothing else on the network is contacted.
 - **No write endpoint is named anywhere in the tree.** The only `.post(` is this plugin's own loopback
   route `POST /api/plugins/call-ledger/sync`, which triggers a read-only pull of the bill; the only
@@ -184,8 +185,10 @@ line instead of rendering a blank card:
   the tabs print their read-failure line ("Could not read the vilao wallet: …", "Could not read the key
   list."). The Wallet tab's stat cards have no figure to show, so they read 0 and its running-low card
   appears — that card is a consequence of having no balance to read, not a warning about your account.
-- **Models** reads the marketplace price list through the same authenticated client, so a keyless public
-  page is still unreachable without a token: the tab reports the list as unreachable and shows no offers.
+- **Models** is the part that does not need a vendor: the marketplace price list is a public page and
+  this plugin fetches it without a credential at all, so every offer and every list price arrives with no
+  billing provider configured. The columns beside them that come from your invoice read 0 for the same
+  reason the billed totals do — the store holds no bill rows.
 - Every money figure that would have come from the invoice is absent. Per-row money cells fall back to
   Hermes' USD estimate — converted at the published rate when one is available, and tagged `est` so it is
   never mistaken for a charge — or print a dash where there is no estimate either. Billed totals read 0,
