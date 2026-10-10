@@ -115,3 +115,18 @@ node tools/no_literal.mjs                  # no page copy outside the bundles, e
 from a live store, so the harness sees the shapes the routes really return; `tests/render_plugin.mjs`
 fails (exit 1) on a tab that renders `undefined`, `NaN`, `[object Object]`, none of its expected markers,
 or the *other* locale's marker -- a header left in English under `vi` is caught there, not in review.
+
+`.github/workflows/validate.yml` runs all of them on every push and pull request, against a shallow clone
+of `NousResearch/hermes-agent` exported as `HERMES_AGENT_DIR`. That variable is how a test finds the host
+(`tests/hermes_env.py`) and where the render harness borrows React; unset, both fall back to the install
+on this machine, which is why CI sets it explicitly. Set it the same way before a local run if your
+checkout is not the one Hermes installed.
+
+The one gate CI does not run is `hermes plugins validate .`: it needs a provisioned Hermes environment,
+and a plugin repo must not install one on a runner. The catalog's own CI runs it against the commit you
+pin, so it belongs in your pre-push step, beside the commands above:
+
+```
+hermes plugins validate .                        # catalog admission checks, against your runtime
+```
+
