@@ -5,6 +5,17 @@ this surface shows has to be converted somewhere to be readable in dong. ``open.
 ExchangeRate-API endpoint, no key, no account) republishes once a day, so the cache is refreshed on a
 6-hour TTL: four reads a day at most, and the rate is never more than a few hours behind.
 
+The cache is the acting home's own file: :func:`cache_path` answers
+``<home>/plugin-data/call-ledger/usd-vnd.json`` through ``hermes_constants.get_hermes_home()``, so under a
+multiplex host each profile keeps its own copy. This is the one path in the plugin that does not follow the
+shared store and the catalogue cache -- those resolve their ``plugin-data/call-ledger`` directory through
+``get_default_hermes_root()`` (``usage_store.root_home``, ``vilao_read.cache_dir``) because what they hold is
+one account's truth: a home with its own ledger was blind to the other profiles, and a home with its own
+copy of the price list meant walking the marketplace once per home instead of once. A spot rate is neither
+of those: the same quote means the same thing in every home, so a per-home copy hides nothing from a reader.
+What the two rules really trade is the write -- a refresh updates the file of the home whose process fetched
+it, never a file the other profiles are reading -- and the price is one first fetch per home.
+
 The rate is fetched once and kept on disk, so the surfaces in this plugin that print dong all read one
 number instead of each asking the feed for its own. A read-only caller never writes.
 

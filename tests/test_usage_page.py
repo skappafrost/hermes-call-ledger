@@ -737,6 +737,45 @@ def test_fx_reports_no_rate_when_there_is_no_feed_and_no_cache(tmp_path, monkeyp
     assert fx.to_vnd(1234.0, "VND") == 1234.0
 
 
+def test_the_two_path_rules_are_the_ones_the_docstrings_state(tmp_path, monkeypatch):
+    """One shared ledger, one per-home rate cache -- and the prose has to say which is which.
+
+    The ledger and the catalogue are one account's truth, so both resolve through
+    ``get_default_hermes_root()``: the home that kept its own copy of the ledger was blind to every other
+    profile and re-ingested the same vilao charges once per home. The FX cache is the acting home's own
+    file, through ``get_hermes_home()``, because a spot rate is a display conversion rather than account
+    history and the same quote means the same thing in every home.
+
+    Both halves used to be stated wrongly in the shipped module docstrings -- "one file per profile" for a
+    store that is one file for every profile, ``plugin-data/fx/`` for a cache that lives under
+    ``plugin-data/call-ledger/`` -- and the rule is not decoration: a contributor who believes either one
+    looks for a file that is not there, and a disclosure line written from the comment instead of the code
+    puts a false statement about where user data lives into the catalog. So the resolution is proven from
+    the functions first, then the two sentences are checked against it. Comments and a test only: the
+    resolvers themselves are untouched.
+    """
+    root = Path(tmp_path)
+    acting = root / "profiles" / "alpha"
+    monkeypatch.setenv("HERMES_HOME", str(acting))
+    for name in ("rw_rule_store", "rw_rule_rd", "rw_rule_fx"):
+        sys.modules.pop(name, None)
+    store = _load("rw_rule_store", PLUGIN_ROOT / "usage_store.py")
+    rd = _load("rw_rule_rd", PLUGIN_ROOT / "vilao_read.py")
+    fx = _load("rw_rule_fx", PLUGIN_ROOT / "fx.py")
+
+    shared = root / "plugin-data" / "call-ledger"
+    assert os.path.dirname(store.store_path()) == str(shared), store.store_path()
+    assert rd.cache_dir() == shared, rd.cache_dir()
+    assert fx.cache_path() == acting / "plugin-data" / "call-ledger" / "usd-vnd.json", fx.cache_path()
+
+    doc = (PLUGIN_ROOT / "usage_store.py").read_text(encoding="utf-8").split('"""')[1]
+    assert "One file per profile" not in doc, "the store docstring still claims a file per home"
+    assert "get_default_hermes_root" in doc and "calls.sqlite" in doc, doc[:160]
+    fxdoc = (PLUGIN_ROOT / "fx.py").read_text(encoding="utf-8").split('"""')[1]
+    assert "plugin-data/fx" not in fxdoc, "the cache dir named here is not the one cache_path() builds"
+    assert "get_hermes_home" in fxdoc and "usd-vnd.json" in fxdoc, fxdoc[:160]
+
+
 def test_plugin_api_loads_without_a_parent_package(tmp_path):
     """The dashboard mounts plugin_api.py by path inside the plugin host: no package, no relative import.
 

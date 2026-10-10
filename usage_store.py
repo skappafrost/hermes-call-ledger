@@ -1,6 +1,12 @@
 """Per-call usage store for the Usage page (plugin-private SQLite).
 
-One file per profile at ``<profile home>/plugin-data/call-ledger/calls.sqlite``. This never opens
+One file for every profile, at ``<install root>/plugin-data/call-ledger/calls.sqlite``: :func:`root_home`
+resolves that root through ``hermes_constants.get_default_hermes_root()``, which unwraps a profile home back
+to the install root, and falls back to the acting home (``get_hermes_home()``) on a process where no install
+root resolves. Charges belong to the account rather than to the home that happened to sync them, and the
+page answers across profiles, so one file per home was the bug this replaced: it hid every other profile's
+calls and re-ingested the same vilao charges once per home. Provenance is a column (``profile``), not a
+path. This never opens
 Hermes' ``state.db``: rows are written by the observer hook thread, the bill-sync thread and read by
 dashboard request threads, so each thread keeps its own connection and WAL arbitrates.
 
