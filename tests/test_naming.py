@@ -86,17 +86,21 @@ def test_identity_is_one_string_across_surfaces():
 
     `__init__.py` broadcasts each call row under its own copy of the id, so a drift there is invisible to
     the page (it keeps rendering) and to the manifest check (it keeps passing): the events simply go to a
-    plugin id nobody is listening under.
+    plugin id nobody is listening under. `dashboard/plugin_api.py` carries a fifth copy, because reading
+    `plugins.entries.<id>.settings` needs the id and the dashboard module has no package to import it
+    from -- a drift there answers the page with the defaults forever, which looks like an unset setting.
     """
     manifest = (ROOT / "plugin.yaml").read_text(encoding="utf-8")
     js = (ROOT / "desktop" / "plugin.js").read_text(encoding="utf-8")
     dash = (ROOT / "dashboard" / "manifest.json").read_text(encoding="utf-8")
     init = (ROOT / "__init__.py").read_text(encoding="utf-8")
+    api = (ROOT / "dashboard" / "plugin_api.py").read_text(encoding="utf-8")
     name = re.search(r'"name":\s*"([^"]+)"', manifest).group(1)
     pid = re.search(r"const PLUGIN_ID = '([^']+)'", js).group(1)
     dname = re.search(r'"name":\s*"([^"]+)"', dash).group(1)
     iid = re.search(r'^PLUGIN_ID = "([^"]+)"', init, re.M).group(1)
-    assert name == pid == dname == iid == "hermes-call-ledger", (name, pid, dname, iid)
+    aid = re.search(r'^PLUGIN_ID = "([^"]+)"', api, re.M).group(1)
+    assert name == pid == dname == iid == aid == "hermes-call-ledger", (name, pid, dname, iid, aid)
 
 
 def test_store_is_under_the_plugin_id_dir():

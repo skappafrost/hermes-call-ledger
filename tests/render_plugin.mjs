@@ -35,7 +35,7 @@ src = src
 src += '\nexport { LiveTab, TrendTab, LogTab, QuotaTab, WalletTab, KeysTab, ModelsTab, Page, Calendar, '
   + 'Lines, Pager, sortRows, csvOf, cellValue, nextSort, pageList, priceDelta, netPrice, effectivePrice, '
   + 'MODEL_COLS, SESSION_COLS, LOG_MODEL_COLS, KEY_COLS, PROVIDER_COLS, safeExternal, '
-  + 'LOCALE_EN, LOCALE_VI, resolve, setLang, lang, t }\n'
+  + 'LOCALE_EN, LOCALE_VI, resolve, setLang, lang, t, formatMoney, dong, est }\n'
 io.writeFileSync(join(here, 'page-under-test.mjs'), src, 'utf-8')
 
 const stub = await import(url(join(here, 'sdk-stub.mjs')))
@@ -80,15 +80,21 @@ const SUSPECTS = []
 page.default.register({ rest: stub.fixtureRest, registerMany: () => {}, onDispose: () => {} })
 
 for (const loc of ['en', 'vi']) {
-  /* Every label the page draws comes out of the bundle at render time, so switching the language here is
-   * what switches the page -- no component carries a copy of its own. */
+  /* Two switches, one language: `setLang` is what the page's own resolver answers with once Page has
+   * rendered, and `__stubLocale` is the app locale the stub hands `useI18n` -- the settings fixture says
+   * `auto`, so the page must follow the app, exactly as it does on a real machine. */
+  globalThis.__stubLocale = loc
   page.setLang(loc)
   for (const [name, Comp] of Object.entries(COMPONENTS)) {
     try {
       const html = renderToString(jsx(Comp, {}))
       const bad = /(>undefined|>NaN|\[object Object\]|var\(--[a-z-]+, undefined)/.exec(html)
       const clock = />(\d\d:\d\d:\d\d)</.exec(html)
-      const dong = /(₫?[\d.,]+\s*(?:đ|dong))/.exec(html)
+      /* The money the page drew, whatever unit it drew it in: dong prints as `500.000 ₫` (the account's
+       * own writing, from Intl.NumberFormat) and dollars as `$0.02`, and a dash means the page had no
+       * rate to print -- which is an answer, not a bug. The symbol is what makes this match money and not
+       * some other number on the screen. */
+      const dong = /(₫[\d.,]+|[\d.,]+\s+₫|\$[\d.,]+)/.exec(html)
       const want = MUST[loc][name]
       const other = MUST[loc === 'en' ? 'vi' : 'en'][name]
       const missing = want && !html.includes(want) ? 'MISSING[' + want + ']' : ''
@@ -109,7 +115,59 @@ for (const loc of ['en', 'vi']) {
     }
   }
 }
+/* Money on a machine that has never fetched a rate (spec §6.1: no FX available means print nothing,
+ * never an invented conversion). Each row asks for one unit and forbids the other symbol entirely: a
+ * `₫` on the dollar page would be a dong figure produced without a rate, and a `$` on the dong page would
+ * be a dollar estimate the page had quietly converted. The English page is used because the Vietnamese
+ * column headers carry a dong sign of their own, which is copy and not money. */
+globalThis.__stubNoFx = true
+globalThis.__stubLocale = 'en'
+for (const [label, currency, own, forbidden] of [
+  ['no rate, asks for dong', 'auto', '₫', '$'],
+  ['no rate, asks for dollars', 'usd', '$', '₫']
+]) {
+  globalThis.__stubSettingsCurrency = currency
+  page.setLang('en')
+  const html = renderToString(jsx(page.Page, {}))
+  const bad = !html.includes(own) || html.includes(forbidden)
+  console.log(label.padEnd(30) + (bad ? ' SUSPECT the page printed ' + (html.includes(forbidden)
+    ? forbidden + ' with no rate to convert with' : 'no ' + own + ' at all') : 'ok'))
+  if (bad) SUSPECTS.push(label + ': money printed a unit it had no rate for')
+}
+delete globalThis.__stubNoFx
+delete globalThis.__stubSettingsCurrency
+
 const fails = globalThis.__renderFailures || []
+
+/* The resolution itself, proven behaviourally rather than by reading the source. A `Page` whose app
+ * locale says `vi` must paint Vietnamese on its FIRST render even when the module language still says
+ * `en` -- which is only true because Page computes `setLang(resolve(appLocale, settings.language))` in its
+ * render body. Move that into an effect and this fails: renderToString never runs effects, so the html
+ * keeps the language it was handed, and a Vietnamese reader's first frame is English.
+ *
+ * The third case is the one that proves the route is consulted at all: the app says English, the reader's
+ * setting says Vietnamese, and the setting wins. */
+const flip = (appLocale, preset, language) => {
+  globalThis.__stubLocale = appLocale
+  globalThis.__stubSettingsLanguage = language
+  page.setLang(preset)
+  try {
+    return renderToString(jsx(page.Page, {}))
+  } finally {
+    delete globalThis.__stubSettingsLanguage
+  }
+}
+for (const [label, html, want, other] of [
+  ['Page app=vi lang=en', flip('vi', 'en'), MUST.vi.Page, MUST.en.Page],
+  ['Page app=en lang=vi', flip('en', 'vi'), MUST.en.Page, MUST.vi.Page],
+  ['setting vi beats app en', flip('en', 'en', 'vi'), MUST.vi.Page, MUST.en.Page]
+]) {
+  const bad = !html.includes(want) || html.includes(other)
+  console.log(label.padEnd(30) + (bad ? ' SUSPECT the first render did not answer the reader'
+    + ' (wanted ' + want + ', saw ' + (html.includes(other) ? other : 'nothing of it') + ')' : 'ok'))
+  if (bad) SUSPECTS.push(label + ': the first render did not answer the reader')
+}
+
 console.log('query failures:', fails.length ? fails.slice(0, 5).join(' | ') : 'none')
 /* A harness that always exits 0 is a harness nobody reads. */
 if (SUSPECTS.length || fails.length) {

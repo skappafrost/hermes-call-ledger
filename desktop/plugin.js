@@ -253,15 +253,14 @@ const LOCALE_EN = {
     }
   },
   money: {
-    /* Dong prints after the amount, the way the account itself writes it. Task 8 owns the number
-     * formatting (currency setting + Intl); this is only the unit the page prints. */
-    dong: n => n + ' dong',
-    estTitle: (usd, rate, fixed) => 'Hermes estimate ' + usd + ' USD x ' + rate
-      + ' dong/USD' + (fixed ? ' (fixed rate)' : ''),
+    /* The unit and the grouping come from Intl.NumberFormat inside formatMoney, so no message here prints
+     * a number: these say what the page did with a rate, and they are the only money copy left. */
+    estTitle: (usd, rate) => 'Hermes estimate ' + usd + ' at ' + rate + ' per US dollar',
     rateLine: (usd, cny, source, stale) => '1 USD ≈ ' + usd + cny + ' · source ' + source
       + (stale ? ' (old price)' : ''),
     rateCny: cny => ' · 1 CNY ≈ ' + cny,
-    noRate: 'No USD to dong rate yet, so the estimate columns still print in dollars.'
+    noRate: 'No USD to dong rate yet, so the estimate columns print nothing rather than a made-up '
+      + 'conversion.'
   },
   time: {
     days: n => n + ' days',
@@ -511,13 +510,11 @@ const LOCALE_VI = {
     }
   },
   money: {
-    dong: n => n + 'đ',
-    estTitle: (usd, rate, fixed) => 'Hermes ước tính ' + usd + ' USD × ' + rate
-      + 'đ/USD' + (fixed ? ' (tỷ giá cố định)' : ''),
+    estTitle: (usd, rate) => 'Hermes ước tính ' + usd + ' theo ' + rate + ' mỗi đô la Mỹ',
     rateLine: (usd, cny, source, stale) => '1 USD ≈ ' + usd + cny + ' · nguồn ' + source
       + (stale ? ' (giá cũ)' : ''),
     rateCny: cny => ' · 1 CNY ≈ ' + cny,
-    noRate: 'Chưa lấy được tỷ giá USD→đ, nên phần ước tính vẫn in bằng đô la.'
+    noRate: 'Chưa lấy được tỷ giá USD→đ, nên cột ước tính in dấu — thay vì một con số tự bịa.'
   },
   time: {
     days: n => n + ' ngày',
@@ -615,23 +612,54 @@ const NO_HOME = '-'
 
 /* ---------- formatting ---------- */
 
-/* Dong prints after the amount, the way the account itself writes it, and the unit is a message because
- * which unit reads as plain depends on the language the page is answering in. */
-const dong = v => t('money.dong', Math.round(Number(v) || 0).toLocaleString('vi-VN'))
+/* The two units this page can print, each with the writing system that unit uses: dong groups with a
+ * dot and puts the symbol after the amount (500.000 ₫, the way the account itself writes it), dollars
+ * group with a comma and lead with the sign ($0.02). The unit decides the grouping, not the language of
+ * the surrounding copy -- an English reader of a dong bill still reads the bill's number, and a
+ * Vietnamese reader of a dollar estimate reads dollars. */
+const MONEY_UNIT = { vnd: { tag: 'vi-VN', code: 'VND', digits: 0 }, usd: { tag: 'en-US', code: 'USD', digits: 2 } }
+
+/* Page writes this once per render, before any child draws: which unit the reader asked for, and the
+ * backend's current rate for crossing between the two. `rate` is null until /fx answers. */
+let MONEY = { currency: 'auto', rate: null }
+
+/* The page's only money printer. `value` is in `from` -- dong for a billed figure, dollars for one of
+ * Hermes' estimates -- and comes out in the unit the reader chose, `auto` being the account's own dong.
+ *
+ * Crossing between the two units is the one thing this cannot do without the backend's rate, and it does
+ * not pretend to: no rate is `—`. The page used to convert at a bootstrap number copied from fx.py, which
+ * printed a dong figure the account was never charged and labelled it an estimate (spec §6.1). */
+function formatMoney(value, { currency = MONEY.currency, from = 'vnd', rate = MONEY.rate, digits } = {}) {
+  const n = Number(value)
+  if (value == null || value === '' || !isFinite(n)) return '—'
+  /* `auto` is the account's own unit, dong. A value the schema does not know (config.yaml is
+   * hand-editable and the host only warns about it) also prints dong, rather than throwing away every
+   * money column on the page. */
+  const wanted = currency === 'auto' ? 'vnd' : currency
+  const to = MONEY_UNIT[wanted] ? wanted : 'vnd'
+  let amount = n
+  if (from !== to) {
+    if (!rate) return '—'
+    amount = from === 'usd' ? n * rate : n / rate
+  }
+  const unit = MONEY_UNIT[to]
+  /* `digits` is for the one place a column cannot hold the figure: a call costs a fraction of a cent, so
+   * the tooltip that names the estimate asks for four of them and the table that summarises it does not. */
+  const places = digits == null ? unit.digits : digits
+  return new Intl.NumberFormat(unit.tag, { style: 'currency', currency: unit.code,
+    minimumFractionDigits: places, maximumFractionDigits: places }).format(amount)
+}
+
 const num = v => (Number(v) || 0).toLocaleString('en-US')
 const pct = v => (Math.round((Number(v) || 0) * 10) / 10).toFixed(1) + '%'
 
-/* Hermes prices models in dollars and vilao bills in dong, and the page is read in dong, so an
- * estimate is converted before it is printed. The rate is the backend's -- one cached table shared with
- * provider-usage, so the status bar and this page cannot disagree. If that table has never arrived, the
- * page converts at the same bootstrap rate the backend hardcodes rather than showing a dollar sign: a
- * figure labelled as an estimate is honest, a mixed-unit page is not. */
-const FALLBACK_USD_VND = 26200
-let FX = null
-const rate = () => Number(FX && FX.usd_vnd) || FALLBACK_USD_VND
-const est = v => v == null || v === '' ? '—' : dong(Number(v) * rate())
-const estTitle = v => v == null ? '' : t('money.estTitle', Number(v).toFixed(4),
-  rate().toLocaleString('vi-VN'), !(FX && FX.usd_vnd))
+/* A billed figure, in the unit the reader chose. */
+const dong = v => formatMoney(v, { from: 'vnd' })
+/* An estimate is dollars until there is a rate to read it as dong, so a reader who asked for dong and got
+ * no rate sees a dash rather than a number nobody charged. */
+const est = v => (v == null || v === '') ? '—' : formatMoney(v, { from: 'usd' })
+const estTitle = v => (v == null || !MONEY.rate) ? '' : t('money.estTitle',
+  formatMoney(v, { currency: 'usd', from: 'usd', digits: 4 }), formatMoney(MONEY.rate, { currency: 'vnd' }))
 
 /* vi-VN writes the time FIRST and the date last ("21:48:49 8/10/2026"), so slicing the tail of the
  * combined locale string returns the date, not the clock -- which is the bug this replaces. Each part
@@ -838,24 +866,37 @@ function useSessions(days) {
 const FX_KEY = ['usage', 'fx']
 /* The conversion table is read once and kept for the session: the backend holds the real cache (six
  * hours) in the same file provider-usage reads, so a refetch here is a disk read, not an API call.
- * Assigning to module state is deliberate -- every money formatter needs the rate and none of them
- * takes a prop. */
+ * Page writes the rate into MONEY during render (see the money printer above), so the formatters that
+ * have no props to take it through still print the rate the backend answered with. */
 function useFx() {
-  const found = useQuery({
+  return useQuery({
     queryKey: FX_KEY,
     queryFn: () => api('/fx'),
     staleTime: 30 * 60 * 1000,
     refetchInterval: 6 * POLL_MS
   })
-  useEffect(() => {
-    FX = (found.data && found.data.fx) || null
-  }, [found.data])
-  return found
 }
 
+const SETTINGS_KEY = ['call-ledger', 'settings']
+/* The reader's three settings, once per minute at most: a settings change lands in config.yaml through
+ * the Plugins hub, and a page that repaints its language on the next poll is a page that repaints
+ * nothing until it is reloaded. The route answers with the manifest defaults when nothing is set, so this
+ * query has no "not configured yet" branch for the page to invent. */
+function useSettings() {
+  return useQuery({ queryKey: SETTINGS_KEY, queryFn: () => api('/settings'), staleTime: 60000 })
+}
+
+/* `useI18n` is the only sanctioned read of the app's own language (apps/desktop/src/sdk/index.ts). An
+ * older or remote host that has no such export leaves appLocale undefined and `resolve` answers English,
+ * which is the documented fallback -- the plugin never reaches into app stores for it. */
+const useAppLocale = typeof sdk.useI18n === 'function' ? () => (sdk.useI18n() || {}).locale : () => undefined
+
+/* A rate is a relationship between two units, so the dong side of the line is dong whatever the reader's
+ * money setting says; converting it to dollars would print "1 USD ≈ $1" and call that information. */
 const rateLine = fx => fx && fx.usd_vnd
-  ? t('money.rateLine', dong(fx.usd_vnd),
-    fx.cny_vnd ? t('money.rateCny', dong(fx.cny_vnd)) : '', fx.source || '', !!fx.stale)
+  ? t('money.rateLine', formatMoney(fx.usd_vnd, { currency: 'vnd' }),
+    fx.cny_vnd ? t('money.rateCny', formatMoney(fx.cny_vnd, { currency: 'vnd' })) : '',
+    fx.source || '', !!fx.stale)
   : t('money.noRate')
 
 function useBalance(enabled) {
@@ -2553,9 +2594,17 @@ function useHotkeys(tab) {
 
 function Page() {
   const tab = useValue($tab)
+  const appLocale = useAppLocale()
+  const settings = useSettings()
   const fx = useFx()
+  const read = settings.data || {}
+  /* Both resolved here, during render, before a single child is drawn: an effect would paint one frame of
+   * English on a Vietnamese reader's machine and one frame of the wrong money unit on everyone else, and
+   * a frame of the wrong language is the one thing a locale switch looks like a bug in. */
+  setLang(resolve(appLocale, read.language))
+  MONEY = { currency: read.currency || 'auto', rate: ((fx.data || {}).fx || {}).usd_vnd || null }
   useCallFeed()
-  useFirstRunBackfill(30)
+  useFirstRunBackfill(Number(read.lookback_days) || 30)
   useHotkeys(tab)
   return jsxs('div', { style: { padding: 16, display: 'grid', gap: 12, alignContent: 'start', height: '100%', overflowY: 'auto' }, children: [
     jsxs('div', { style: { ...gap, justifyContent: 'space-between' }, children: [

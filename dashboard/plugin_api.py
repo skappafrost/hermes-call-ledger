@@ -38,6 +38,15 @@ DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # A Vilao-mode view refresh pulls two bill pages, which costs a few seconds of the billing endpoint's
 # time. Filters change on every keystroke, so the refresh itself is rate-limited rather than free.
 PULSE_COOLDOWN_S = 45.0
+# The three settings the page reads, and the defaults `plugin.yaml` declares for them. Kept as one
+# constant because the Plugins hub shows the manifest's default and this route answers with it: a second
+# copy that drifts makes "unset" mean two different things on one machine (tests/test_settings_route.py
+# compares the two).
+PLUGIN_ID = "hermes-call-ledger"
+DEFAULTS: dict[str, Any] = {"language": "auto", "currency": "auto", "lookback_days": 30}
+# Declared `type: secret` in the manifest. They live in the home's `.env`, are never a page input, and a
+# route that passed the settings subtree through would print one into the renderer's query cache.
+SECRET_KEYS = ("vilao_pat",)
 
 # Where a paged backfill stopped. Inline pulls (no worker thread) keep the request short and let the
 # page drive the walk, so the cursor is the only cross-request state this router needs.
@@ -72,6 +81,44 @@ def _status() -> dict[str, Any]:
     page = int(store.get_meta("bill_page", "1") or 1)
     return {"at": _state["at"], "result": _state["result"], "error": _state["error"],
             "page": page, "pending": page > 1}
+
+
+def _plugin_settings() -> dict[str, Any]:
+    """``plugins.entries.<id>.settings``, read through the public config loader.
+
+    A dashboard module has no PluginContext, and the private helpers the loader uses are not an API to
+    depend on -- so one nested lookup here, no writes, no defaults invented beyond the manifest's. The
+    lookup is a pure read of the served home's config: `load_config_readonly()` hands back the shared
+    cache, which is why this builds a new dict instead of returning what it found.
+
+    A config this host cannot read is not an error page: the answer is the defaults, the same thing the
+    Plugins hub would have shown.
+    """
+    try:
+        from hermes_cli.config import load_config_readonly
+        cfg = load_config_readonly() or {}
+    except Exception:
+        return {}
+    entry = (((cfg.get("plugins") or {}).get("entries") or {}).get(PLUGIN_ID) or {})
+    raw = entry.get("settings")
+    if not isinstance(raw, dict):                      # legacy `config` subtree
+        raw = entry.get("config") if isinstance(entry.get("config"), dict) else {}
+    return {k: v for k, v in raw.items() if k not in SECRET_KEYS}
+
+
+@router.get("/settings")
+def get_settings() -> dict[str, Any]:
+    """The page's readable settings: language, money unit, first-run lookback. Never a secret.
+
+    Unset keys answer with the manifest default rather than being absent, because the desktop page
+    renders from this on its first frame -- a missing key is a locale that flickers, not a None.
+    """
+    out = dict(DEFAULTS)
+    got = _plugin_settings()
+    for key in DEFAULTS:
+        if key in got:
+            out[key] = got[key]
+    return out
 
 
 @router.get("/health")

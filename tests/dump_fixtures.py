@@ -161,6 +161,7 @@ def build(home: Path) -> dict[str, Any]:
         "topups": api.get_topups(),
         "profiles": api.get_profiles(),
         "fx": api.get_fx(),
+        "settings": api.get_settings(),
         "catalog": api.get_catalog(),
         "balance": api.get_balance(),
         "health": api.get_health(),

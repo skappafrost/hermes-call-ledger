@@ -32,6 +32,25 @@ Interactions worth knowing:
 - **đổi giá** appears once the store holds two days of catalogue snapshots; it compares net prices
   (after promo) per offer, and reports offers that appeared or disappeared.
 
+## Settings
+
+Declared in `plugin.yaml` under `config_schema`, so they show up as form fields in the Desktop/TUI Plugins
+hub and live at `plugins.entries.hermes-call-ledger.settings.<key>` in that home's `config.yaml`. The page
+reads the first three through one route (`GET /settings`); unset keys answer with the default below, so a
+fresh install paints English and dong rather than failing to paint.
+
+| Key | Type | Default | What it changes |
+|---|---|---|---|
+| `language` | `auto` \| `en` \| `vi` | `auto` | The page's copy. `auto` follows the Desktop language (`useI18n`); a language with no bundle here falls back to English. |
+| `currency` | `auto` \| `vnd` \| `usd` | `auto` | The money unit. `auto` is the billing feed's own dong. Crossing to dollars needs the FX rate; with no rate the cell prints `—`, never a figure the account did not charge. |
+| `lookback_days` | int | `30` | The window the page reads and backfills when it first opens. |
+| `vilao_pat` | **secret** (`env: VILAO_PAT`) | — | Read-only PAT for vilao.ai. It is stored in the home's `.env` by the app's credential route, never in `config.yaml`, and `/settings` refuses it by name so it cannot be echoed into the renderer. |
+
+Two consequences worth knowing before you change any of this: the language and the money unit are applied
+during `Page`'s render, not in an effect, because a frame of the wrong language looks like a bug in a
+locale switch; and the two bundles are kept key-for-key by `tests/locale_parity.test.mjs`, so a new message
+that only exists in English fails the gate instead of silently answering English to a Vietnamese reader.
+
 ## How the numbers stay honest
 
 Two feeds land in one SQLite file (`<root>/plugin-data/call-ledger/calls.sqlite`, shared by every
@@ -84,13 +103,15 @@ marketplace is read, pruned to `CATALOG_RETENTION_DAYS`.
 
 ```
 py -3.13 -m pytest tests -q                # store, matcher, routes, identity and the two gates
-py -3.13 tests/test_usage_page.py          # the same suite standalone: cases=46 failures=0
+py -3.13 tests/test_usage_page.py          # the same suite standalone
 py -3.13 tests/dump_fixtures.py            # rebuild tests/fixtures.json from a throwaway home
-node tests/render_plugin.mjs               # renders all 7 tabs and the Page against those fixtures
-node tests/ui_units.mjs                    # unit gate for the pure table helpers
+node tests/render_plugin.mjs               # renders all 7 tabs and the Page, under en and under vi
+node tests/ui_units.mjs                    # unit gate for the pure table helpers and the money printer
+node --test tests/locale.test.mjs tests/locale_parity.test.mjs   # resolver, and the two bundles' parity
+node tools/no_literal.mjs                  # no page copy outside the bundles, every t() key resolvable
 ```
 
 `tests/dump_fixtures.py` writes `fixtures.json` from a temporary home seeded with synthetic rows, never
 from a live store, so the harness sees the shapes the routes really return; `tests/render_plugin.mjs`
-fails (exit 1) on a tab that renders `undefined`, `NaN`, `[object Object]`, or none of its expected
-marker.
+fails (exit 1) on a tab that renders `undefined`, `NaN`, `[object Object]`, none of its expected markers,
+or the *other* locale's marker -- a header left in English under `vi` is caught there, not in review.

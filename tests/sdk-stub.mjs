@@ -23,6 +23,14 @@ export const host = {
   t: k => k
 }
 
+/* The app's own language, which the real hook reads from the i18n context. The render harness sets
+ * __stubLocale per pass so `auto` in the settings payload resolves the way it does on a machine that
+ * speaks Vietnamese -- the alternative, letting the page's own setLang answer 'en' every time, would make
+ * the vi half of that harness render the English page twice and call it coverage. */
+export function useI18n() {
+  return { locale: globalThis.__stubLocale || 'en', setLocale: () => Promise.resolve(), t: k => k }
+}
+
 export function atom(initial) {
   // a fresh object every call: two atoms seeded with the same value are still two atoms
   const a = { value: initial, get: () => a.value, set: v => { a.value = v }, listen: () => () => {} }
@@ -41,6 +49,16 @@ function pick(path) {
   if (process.env.RQ_DEBUG) console.log('  rest ->', p.slice(0, 40))
   if (p.startsWith('/keys/detail')) return FIXTURES.keyDetail
   if (p.startsWith('/keys')) return FIXTURES.keys
+  /* The route's own answer is `language: auto` (the fixture home sets nothing), and `auto` follows the
+   * app -- so the app locale the harness is standing in for decides what the page resolves to. Echoing
+   * it here is what makes the vi pass of `Page` a Vietnamese reader's machine rather than a lie, and
+   * `__stubSettingsLanguage` is how a pass asks the other question: a reader who set `vi` on an English
+   * app. */
+  if (p.startsWith('/settings')) {
+    return { ...FIXTURES.settings,
+      language: globalThis.__stubSettingsLanguage || FIXTURES.settings.language,
+      currency: globalThis.__stubSettingsCurrency || FIXTURES.settings.currency }
+  }
   if (p.startsWith('/catalog')) return FIXTURES.catalog
   if (p.startsWith('/topups')) return FIXTURES.topups
   if (p.startsWith('/log')) return p.includes('days=365') ? FIXTURES.logAll : FIXTURES.log
@@ -53,7 +71,9 @@ function pick(path) {
   if (p.startsWith('/profiles')) return FIXTURES.profiles
   if (p.startsWith('/balance')) return FIXTURES.balance
   if (p.startsWith('/health')) return FIXTURES.health
-  if (p.startsWith('/fx')) return FIXTURES.fx
+  /* `__stubNoFx` is the machine that has never fetched a rate: the route answers, the table is empty, and
+   * every money column that would need a conversion has to say so instead of guessing one. */
+  if (p.startsWith('/fx')) return globalThis.__stubNoFx ? { fx: null } : FIXTURES.fx
   if (p.startsWith('/calls')) {
     if (p.includes('billed=1')) return FIXTURES.vilaoCalls
     return p.includes('page=2') ? FIXTURES.callsPage2 : FIXTURES.calls

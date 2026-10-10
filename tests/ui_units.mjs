@@ -127,6 +127,40 @@ for (const [name, columns] of Object.entries({
   check(name + ': exported cell is text or a number', untyped.length === 0, untyped)
 }
 
+/* --- money (Task 8: one printer, one unit decision, no invented rate) -------------------------- */
+/* Intl puts a no-break space between a Vietnamese amount and its symbol, which is invisible in a log and
+ * a nightmare in a string comparison, so the assertions compare a flattened copy. What matters here is
+ * the grouping, the symbol and the dash -- not which space ICU chose. */
+const flat = s => String(s).replace(/[\u00A0\u202F\u2009]/g, ' ')
+check('dong is grouped the way the account writes it',
+  flat(ui.formatMoney(500000, { currency: 'auto' })) === '500.000 ₫',
+  flat(ui.formatMoney(500000, { currency: 'auto' })))
+check('dollars are grouped the way dollars are',
+  flat(ui.formatMoney(500000, { currency: 'usd', rate: 25000 })) === '$20.00',
+  flat(ui.formatMoney(500000, { currency: 'usd', rate: 25000 })))
+check('the unit decides the grouping, not the language of the copy',
+  flat(ui.dong(14820.5)) === '14.821 ₫', flat(ui.dong(14820.5)))
+check('a crossing with no rate prints a dash, never a made-up figure',
+  ui.formatMoney(500000, { currency: 'usd' }) === '—')
+check('an estimate has no dong without a rate either', ui.est(0.02) === '—', ui.est(0.02))
+check('a figure already in the unit asked for needs no rate',
+  flat(ui.formatMoney(0.0042, { currency: 'usd', from: 'usd', digits: 4 })) === '$0.0042')
+check('nothing to print is a dash', ui.formatMoney(null, { currency: 'vnd' }) === '—')
+check('a non-number is a dash', ui.formatMoney('abc', { currency: 'vnd' }) === '—')
+
+/* --- the locale actually reaches the widgets (Task 7's render pass is the other half) ---------- */
+/* The column lists and the option lists are factories for exactly this reason: a const would have frozen
+ * English labels in at import and the Vietnamese render would have shown English headers. */
+ui.setLang('vi')
+const viCols = ui.PROVIDER_COLS()
+check('a column list built under vi carries vi labels', viCols.some(c => c.label === 'đỉnh rpm'),
+  viCols.map(c => c.label))
+check('a column list built under vi carries no en label', !viCols.some(c => c.label === 'peak rpm'))
+const viRanges = ui.LOCALE_VI.live.range
+check('the vi range list is the vi wording', viRanges.d30 === '30 ngày', viRanges)
+ui.setLang('en')
+check('switching back re-reads the en bundle', ui.PROVIDER_COLS().some(c => c.label === 'peak rpm'))
+
 /* --- the external-link guard, re-checked here because it is a security boundary --------- */
 check('https vilao link passes', ui.safeExternal('https://vilao.ai/model/dogi/glm-5.3') === 'https://vilao.ai/model/dogi/glm-5.3')
 check('http is refused', ui.safeExternal('http://vilao.ai/x') === null)
