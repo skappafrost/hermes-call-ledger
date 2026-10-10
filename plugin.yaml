@@ -8,7 +8,13 @@
   "provides_tools": [],
   "provides_hooks": ["post_api_request", "post_auxiliary_call", "api_request_error"],
   "provides_middleware": [],
-  "requires_env": [],
+  "requires_env": [
+    {
+      "name": "VILAO_PAT",
+      "description": "Optional. vilao.ai Personal Access Token, used read-only to attach the real charge to each call. Skip it and every call still lands, priced by Hermes' own estimate where the price book knows the model.",
+      "secret": true
+    }
+  ],
   "config_schema": {
     "language": {
       "type": "str",
