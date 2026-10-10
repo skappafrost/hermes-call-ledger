@@ -4,6 +4,9 @@
  * actually return -- and it has already caught a duplicate top-level `const`, an undefined variable in
  * LiveTab, and a style value passed where a DOM attribute belongs, none of which the parser reports.
  *
+ * Each component is rendered twice, once per locale (en, then vi), and a locale whose marker strings are
+ * not on screen is a failure: the render is the only gate that sees the page the way the reader does.
+ *
  * It reads no store and opens no socket: the data comes from tests/fixtures.json (tests/dump_fixtures.py
  * writes it from a temporary home), and the only thing taken from the Hermes checkout is React itself.
  */
@@ -49,39 +52,61 @@ const page = await import(url(join(here, 'page-under-test.mjs')))
  * report "ok" for a component that rendered a card and an empty state, which is exactly the bug a
  * refactor of the shared table can introduce.
  *
- * These are English because the page speaks English by default (desktop/plugin.js LOCALE_EN). Each one
- * moves in the same commit that moves the string it names, so a tab that stops drawing its main widget
- * still fails here instead of matching a string that no longer exists anywhere. */
+ * The set is per locale, because the page has two: the English markers are the copy LOCALE_EN gives the
+ * default reader, and the Vietnamese ones are the same widgets' copy in LOCALE_VI. A header that stayed
+ * English under `vi` fails twice over -- its Vietnamese marker is missing from the html, and the English
+ * marker it should have replaced is still there. Both are checked below.
+ *
+ * `T1→T12` is the one marker that is not a translation of its English twin: the year grid names its
+ * months `T1`…`T12` in Vietnamese because twelve three-letter labels do not fit over 53 columns. */
 const MUST = {
-  Live: 'filter model', Trend: 'Jan→Dec', Log: 'Usage per day', Quota: 'peak rpm',
-  Wallet: 'Your vilao API keys', Keys: 'this key', Models: 'offers on sale', Page: 'Call ledger'
+  en: {
+    Live: 'filter model', Trend: 'Jan→Dec', Log: 'Usage per day', Quota: 'peak rpm',
+    Wallet: 'Your vilao API keys', Keys: 'this key', Models: 'offers on sale', Page: 'Call ledger'
+  },
+  vi: {
+    Live: 'lọc model', Trend: 'T1→T12', Log: 'Usage mỗi ngày', Quota: 'đỉnh rpm',
+    Wallet: 'API key của bạn trên vilao', Keys: 'Key này đã trả', Models: 'offer đang bán',
+    Page: 'Sổ chi phí gọi'
+  }
+}
+const COMPONENTS = {
+  Live: page.LiveTab, Trend: page.TrendTab, Log: page.LogTab, Quota: page.QuotaTab,
+  Wallet: page.WalletTab, Keys: page.KeysTab, Models: page.ModelsTab, Page: page.Page
 }
 const SUSPECTS = []
 
 /* register() is what hands the page its rest bridge; without it every query answers "not mounted". */
 page.default.register({ rest: stub.fixtureRest, registerMany: () => {}, onDispose: () => {} })
 
-for (const [name, Comp] of Object.entries({
-  Live: page.LiveTab, Trend: page.TrendTab, Log: page.LogTab, Quota: page.QuotaTab, Wallet: page.WalletTab,
-  Keys: page.KeysTab, Models: page.ModelsTab, Page: page.Page
-})) {
-  try {
-    const html = renderToString(jsx(Comp, {}))
-    const bad = /(>undefined|>NaN|\[object Object\]|var\(--[a-z-]+, undefined)/.exec(html)
-    const clock = />(\d\d:\d\d:\d\d)</.exec(html)
-    const dong = /(₫?[\d.,]+\s*(?:đ|dong))/.exec(html)
-    const missing = MUST[name] && !html.includes(MUST[name]) ? 'MISSING[' + MUST[name] + ']' : ''
-    if (process.env.DUMP) io.writeFileSync(join(here, 'tab-' + name + '.html'), html, 'utf-8')
-    /* Padded by hand: console.log has no C-style width specifiers, so the format string that used to sit
-     * here was printed literally and ran the values together (`Live223835ok`). The gate is exit-code and
-     * SUSPECTS based, so it was never wrong -- this is only the difference between a log and a wall. */
-    const status = bad || missing ? 'SUSPECT ' + (bad ? bad[0] : missing) : 'ok'
-    console.log([name.padEnd(10), (html.length + ' chars').padStart(13), status.padEnd(26),
-      clock ? 'clock=' + clock[1] : '', dong ? 'money=' + dong[1] : ''].filter(Boolean).join(' '))
-    if (bad || missing) SUSPECTS.push(name + ': ' + (bad ? bad[0] : missing))
-  } catch (err) {
-    console.log(name.padEnd(10) + ' THREW ' + String(err && err.message).slice(0, 130))
-    SUSPECTS.push(name + ' threw: ' + String(err && err.message).slice(0, 90))
+for (const loc of ['en', 'vi']) {
+  /* Every label the page draws comes out of the bundle at render time, so switching the language here is
+   * what switches the page -- no component carries a copy of its own. */
+  page.setLang(loc)
+  for (const [name, Comp] of Object.entries(COMPONENTS)) {
+    try {
+      const html = renderToString(jsx(Comp, {}))
+      const bad = /(>undefined|>NaN|\[object Object\]|var\(--[a-z-]+, undefined)/.exec(html)
+      const clock = />(\d\d:\d\d:\d\d)</.exec(html)
+      const dong = /(₫?[\d.,]+\s*(?:đ|dong))/.exec(html)
+      const want = MUST[loc][name]
+      const other = MUST[loc === 'en' ? 'vi' : 'en'][name]
+      const missing = want && !html.includes(want) ? 'MISSING[' + want + ']' : ''
+      const stale = want && html.includes(other) ? 'ENGLISH_LEFT[' + other + ']' : ''
+      if (process.env.DUMP) io.writeFileSync(join(here, 'tab-' + name + '-' + loc + '.html'), html, 'utf-8')
+      /* Padded by hand: console.log has no C-style width specifiers, so the format string that used to sit
+       * here was printed literally and ran the values together (`Live223835ok`). The gate is exit-code and
+       * SUSPECTS based, so it was never wrong -- this is only the difference between a log and a wall. */
+      const status = bad || missing || stale
+        ? 'SUSPECT ' + (bad ? bad[0] : (missing || stale)) : 'ok'
+      console.log([loc.padEnd(4), name.padEnd(9), (html.length + ' chars').padStart(13),
+        status.padEnd(30), clock ? 'clock=' + clock[1] : '', dong ? 'money=' + dong[1] : '']
+        .filter(Boolean).join(' '))
+      if (bad || missing || stale) SUSPECTS.push(loc + '/' + name + ': ' + (bad ? bad[0] : (missing || stale)))
+    } catch (err) {
+      console.log(loc.padEnd(4) + name.padEnd(9) + ' THREW ' + String(err && err.message).slice(0, 130))
+      SUSPECTS.push(loc + '/' + name + ' threw: ' + String(err && err.message).slice(0, 90))
+    }
   }
 }
 const fails = globalThis.__renderFailures || []

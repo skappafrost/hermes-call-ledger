@@ -296,7 +296,261 @@ const LOCALE_EN = {
     hermesEstimate: 'Hermes estimate', vilaoBill: 'Vilao bill', billMatch: 'Bill match'
   }
 }
-const LOCALE_VI = {}
+/* The Vietnamese bundle: the same tree as LOCALE_EN, key for key, with the wording the owner already
+ * reads. Loanwords the Vietnamese UI borrows rather than invents (provider, model, cache, home, delay)
+ * and machine field names (api_mode, health) stay as the platform writes them -- tests/locale_parity.test.mjs
+ * carries that short list and fails on anything else that is still English prose. */
+const LOCALE_VI = {
+  app: { title: 'Sổ chi phí gọi', version: v => 'v' + v,
+    keys: 'phím: [ ] trang · / lọc · 1-7 tab · Esc đóng' },
+  tab: { live: 'Live', trend: 'Xu hướng', log: 'Log', quota: 'Hạn mức', wallet: 'Ví',
+    keys: 'Key', models: 'Model' },
+  common: {
+    none: 'Không có dòng nào.', exporting: 'CSV', sortBy: label => 'sắp xếp theo ' + label,
+    loading: 'đang đọc…', emptyDays: 'Chưa có ngày nào trong cửa sổ này.',
+    exportRows: n => 'xuất ' + n + ' dòng đang hiển thị ra file CSV',
+    colsShown: n => 'cột · ' + n,
+    colsTitle: 'chọn cột muốn xem (lưu lại cho lần sau)'
+  },
+  sync: {
+    error: e => 'Lỗi: ' + e,
+    scanning: (days, page, read) => 'Đang quét hóa đơn vilao ' + days + ' ngày… trang ' + page
+      + ' · ' + read + ' dòng đã đọc',
+    done: (read, stored, matched) => 'Đồng bộ: ' + read + ' dòng đọc, ' + stored + ' mới, '
+      + matched + ' khớp'
+  },
+  live: {
+    filterModel: 'lọc model…',
+    pager: (page, pages, matched, per) => 'trang ' + page + '/' + pages + ' · ' + matched
+      + ' dòng khớp · ' + per + '/trang',
+    prev: '‹ trước', next: 'sau ›',
+    modeHermes: 'Hermes gọi', modeVilao: 'Hóa đơn Vilao',
+    pickKey: 'key', pickProvider: 'provider', pickHome: 'home', pickRange: 'khung giờ',
+    pickOutcome: 'kết quả',
+    mainOnly: 'chỉ lượt gọi chính',
+    providerAll: 'mọi provider',
+    dayChip: d => 'ngày ' + d,
+    dayChipTitle: 'đang lọc đúng một ngày nên khung giờ không áp dụng — bấm để bỏ',
+    syncPulse: 'Đồng bộ hóa đơn',
+    syncPulseTitle: 'Đọc thêm hóa đơn cho tới trang đầu tiên đã có sẵn trong store.',
+    syncRestart: 'Quét lại 30 ngày',
+    syncRestartTitle: 'Quét lại 30 ngày hóa đơn: nạp dòng mới, ghép cặp với log Hermes và điền API key '
+      + 'cho những dòng được nạp trước khi hóa đơn có key.',
+    homeAll: 'mọi home',
+    homeBill: 'hóa đơn · không rõ home',
+    homeBillTitle: 'Những dòng vilao tính tiền nhưng log Hermes không có lượt tương ứng — một khoản tính '
+      + 'tiền thuộc về tài khoản, không thuộc về home nào cả.',
+    homeMeta: (calls, dong) => calls + ' lượt · ' + dong,
+    keyStopped: spent => 'ngưng · ' + spent,
+    keyMeta: (prefix, requests) => prefix + ' · ' + requests + ' lượt',
+    keyUnlisted: 'không còn liệt kê',
+    billNote: matched => 'Hóa đơn vilao đọc bằng PAT; bộ lọc áp lên ' + matched
+      + ' dòng khớp trong số đã cập nhật về máy.',
+    billEmpty: 'Chưa có dòng hóa đơn nào khớp bộ lọc trong số đã cập nhật về máy. '
+      + 'Bấm “Quét lại 30 ngày” để đọc sâu hơn.',
+    readFail: e => 'Không đọc được log: ' + e,
+    emptyStore: 'Chưa có lượt gọi nào trong store. Lần mở tab này sẽ quét ngược hóa đơn vilao, còn log '
+      + 'tại máy đầy dần khi bạn chạy agent.',
+    range: { all: 'toàn bộ', h24: '24 giờ', d7: '7 ngày', d30: '30 ngày' },
+    outcome: { all: 'mọi kết quả', ok: 'thành công', error: 'lỗi' },
+    keyAll: 'mọi key',
+    keyUnknown: 'không rõ key',
+    rowHomeBill: 'hóa đơn',
+    rowHomeTitle: 'Dòng hóa đơn vilao — một khoản tính tiền của tài khoản, log Hermes không có lượt tương '
+      + 'ứng nên không home nào gọi cả.',
+    rowModelTitle: 'chỉ hiện model này',
+    rowError: 'lỗi',
+    cacheShare: p => 'cache = ' + p + ' của token',
+    estTag: 'est',
+    totalsLabel: 'tổng trang này',
+    totalsRows: (n, per) => n + '/' + per + ' dòng',
+    totalsHomes: n => n + ' home',
+    totalsMatched: n => 'bộ lọc khớp ' + n + ' dòng',
+    totalsCache: p => p + ' cache',
+    match: { matched: 'đã ghép hai nguồn', localOnly: 'chỉ log Hermes',
+      billOnly: 'chỉ hóa đơn vilao' },
+    col: { clock: 'giờ', date: 'ngày', home: 'home', model: 'model', keyProvider: 'key / provider',
+      inOut: 'vào → ra', cache: 'cache', tokens: 'tổng token', delay: 'delay', dong: '₫' }
+  },
+  trend: {
+    yearGrid: n => 'Năm ' + n + ' · T1→T12, mỗi ô vuông là một ngày, đậm theo tiền đã bị trừ',
+    days: n => n + ' ngày',
+    statCalls: 'Lượt gọi', statTokens: 'Token', statBilled: 'Tiền theo hóa đơn',
+    statEstimate: 'Hermes ước tính', statAvgDay: 'Trung bình/ngày',
+    tokenHint: (tokIn, tokOut, tokCache) => 'vào ' + tokIn + ' · ra ' + tokOut + ' · cache ' + tokCache,
+    billedHint: 'tiền thật đã trừ vào ví',
+    estHint: 'bảng giá nội bộ, quy đổi ra đ',
+    avgHint: month => '≈ ' + month + '/tháng',
+    noSpend: 'chưa có chi tiêu',
+    emptyBill: 'Chưa có dòng nào khớp hóa đơn trong cửa sổ này.',
+    burnLine: (perDay, days) => 'Chi tiêu ' + perDay + '/ngày trong ' + days
+      + ' ngày gần đây có hoạt động.',
+    dailyTitle: days => 'Usage mỗi ngày · ' + days + ' ngày gần nhất',
+    seriesBilled: 'tiền bị trừ (đ)', seriesTokens: 'token',
+    dailyDongTitle: 'Tiền mỗi ngày (đ, chỉ ngày có chi tiêu)',
+    latencyTitle: 'Độ trễ trung bình mỗi ngày (ms)',
+    deep: 'Quét 12 tháng', deepResume: 'Quét tiếp 12 tháng',
+    deepTitle: 'Đọc hóa đơn vilao ngược về 12 tháng (~41.000 dòng, tính bằng phút).',
+    deepResumeTitle: page => 'Quét tiếp từ trang ' + page + ' (đang dở). Store chỉ tô được những ngày '
+      + 'nó đang giữ.'
+  },
+  quota: {
+    window: { h1: '1 giờ', h24: '24 giờ', d7: '7 ngày' },
+    col: { provider: 'provider', calls: 'lượt', tokens: 'token', billed: '₫ hóa đơn',
+      rpmNow: 'rpm bây giờ', peakRpm: 'đỉnh rpm', peakRph: 'đỉnh rph', errors: 'lỗi',
+      last: 'gần nhất' },
+    note: 'đo từ log Hermes — các provider này không có API usage để đọc',
+    readFail: e => 'Không đọc được nhịp gọi: ' + e,
+    statWindowCalls: 'Lượt trong cửa sổ', statTokens: 'Token', statPeakMinute: 'đỉnh mỗi phút',
+    statPeakHour: 'đỉnh mỗi giờ', statCharged: 'Bị trừ tiền',
+    perMinute: v => v + '/phút', perHour: v => v + '/giờ',
+    empty: 'Chưa có lượt gọi nào trong cửa sổ này.'
+  },
+  wallet: {
+    col: { key: 'key', status: 'trạng thái', rpm: 'rpm', calls: 'lượt gọi', models: 'model',
+      h24: '24 h', spent: 'đã tiêu' },
+    state: { inUse: 'đang dùng', revoked: 'đã thu hồi', stopped: 'ngưng' },
+    statLeft: 'Còn lại', stat24h: '24 giờ qua', statSpent: 'Đã tiêu (cả đời)',
+    statDeposited: 'Tổng đã nạp (suy ra)', statWithdrawable: 'Rút được',
+    ofDeposited: p => p + ' của tổng đã nạp',
+    perWeek: v => v + '/tuần', noSpend: 'chưa có chi tiêu',
+    readFail: e => 'Không đọc được ví vilao: ' + e,
+    lowTitle: 'Sắp hết tiền',
+    lowBody: left => 'Còn ' + left + '. Nạp thêm trong app vilao trước khi các lượt gọi fail.',
+    pendingTitle: 'Lệnh nạp đang chờ (QR hết hạn sau 30 phút)',
+    pendingCol: { amount: 'số tiền', transaction: 'mã giao dịch', expires: 'hết hạn' },
+    keysHeader: 'API key của bạn trên vilao · cột “24 h” lấy từ log cuộc gọi đã sync',
+    exportKeys: 'xuất toàn bộ key đang hiển thị',
+    noKeys: 'Chưa có API key nào trên tài khoản.',
+    quotaNote: 'Cửa sổ quota/reset của từng provider vẫn nằm ở popover trên status bar (Provider Usage).',
+    topupTitle: paid => 'Lịch sử nạp tiền · tổng đã trả ' + paid,
+    topupAccount: (name, about) => 'tài khoản ' + name + (about ? ' · ' + about : ''),
+    topupRole: r => 'vai ' + r,
+    topupOpened: d => 'mở ' + d,
+    topupActive: d => 'hoạt động ' + d,
+    topupFail: 'Không đọc được lịch sử nạp.',
+    topupCol: { amount: 'số tiền', status: 'trạng thái', method: 'hình thức', created: 'lúc tạo',
+      credited: 'tiền về ví' },
+    topupState: { paid: 'đã trả', pending: 'đang chờ' }
+  },
+  log: {
+    window: { m1: '1 tháng', m3: '3 tháng', y1: '1 năm' },
+    statCalls: 'Lượt gọi', statTokens: 'Token', statModels: 'Model đã dùng', statCharged: 'Bị trừ tiền',
+    statErrors: 'Lỗi',
+    chargedHint: 'chỉ phần khớp được hóa đơn',
+    source: 'nguồn: log Hermes (mọi provider), không chỉ hóa đơn vilao',
+    emptySessions: 'Chưa có phiên nào trong cửa sổ này.',
+    emptyModels: 'Chưa có model nào trong log ở cửa sổ này.',
+    dailyTitle: days => 'Usage mỗi ngày · ' + days + ' ngày (log Hermes)',
+    seriesTokens: 'token', seriesCalls: 'lượt gọi', seriesCache: 'token đọc từ cache',
+    byHomeTitle: 'Lượt gọi chia theo home',
+    sessCol: {
+      session: 'phiên', home: 'home', platform: 'nền', calls: 'lượt', models: 'model',
+      tokens: 'token', cache: 'cache', billed: '₫ hóa đơn', errors: 'lỗi', span: 'dài',
+      spanTitle: (from, to) => 'từ ' + from + ' tới ' + to
+    },
+    modelCol: {
+      model: 'model', provider: 'provider', home: 'home', calls: 'lượt', tokens: 'token',
+      cache: 'cache', billed: '₫ hóa đơn', estimate: 'ước tính', errors: 'lỗi',
+      avgDelay: 'trễ TB', days: 'ngày dùng', last: 'lần cuối',
+      title: m => m + ' · bấm để xem từng lượt gọi'
+    }
+  },
+  keys: {
+    statDayBudget: 'Ngân sách ngày', statMonthBudget: 'Ngân sách tháng', notSet: 'không đặt',
+    statCalls: 'Lượt của key', statPaid: 'Key này đã trả',
+    resetIn: d => 'reset sau ' + d,
+    noResetDate: 'vilao không trả lời ngày reset',
+    lifetimeHint: 'cả đời, theo vilao',
+    budgetNote: 'vilao trả về ngày reset nhưng không trả về số đã tiêu trong kỳ — hai ô ngân sách là hạn '
+      + 'mức, không phải thanh tiến trình.',
+    col: { key: 'key', status: 'trạng thái', rpm: 'rpm', models: 'model', totalCalls: 'tổng lượt',
+      totalPaid: 'tổng đã trả', since: 'mở từ', detail: 'chi tiết' },
+    readFail: 'Không đọc được danh sách key.',
+    reload: 'Đọc lại',
+    noBook: 'Key này không có bảng giá riêng.',
+    bookCol: { model: 'model key này gọi được', floor: 'sàn mỗi lượt', calls: 'lượt',
+      dong: '₫', tokens: 'token', health: 'health' }
+  },
+  models: {
+    selling: (offers, models, mine) => offers + ' offer đang bán · ' + models + ' model · ' + mine
+      + ' offer có model bạn từng trả tiền',
+    search: 'tìm model / provider…',
+    pickProvider: 'provider',
+    providerAll: n => 'mọi provider (' + n + ')',
+    offerMeta: n => n + ' offer',
+    reading: 'đang đọc bảng giá từ vilao…',
+    loading: 'đang đọc bảng giá…',
+    moved: n => 'đổi giá · ' + n,
+    since: day => ' so với ' + day,
+    watchFallback: 'hôm trước',
+    refresh: 'Đọc lại bảng giá',
+    refreshTitle: 'Bảng giá là trang công khai, cache 6 giờ; bấm để đọc lại ngay.',
+    readFail: 'Không đọc được bảng model từ vilao.',
+    offerNote: 'Mỗi dòng là một offer: cùng một model có nhiều provider bán với giá khác nhau, đó là lý do '
+      + 'bảng này dài hơn số model.',
+    exportOffers: n => 'xuất ' + n + ' offer đang lọc (toàn bộ, không chỉ trang này)',
+    empty: 'Không offer nào khớp bộ lọc.',
+    link: 'vilao ↗',
+    price: {
+      newListed: 'mới bán', delisted: 'ngừng bán',
+      move: (pct, field) => pct + ' ' + field
+    },
+    col: {
+      model: 'model', provider: 'provider', kind: 'loại', context: 'ngữ cảnh', priceIn: 'giá vào',
+      priceOut: 'giá ra', cacheRead: 'cache đọc', floor: 'sàn/lượt', success: 'thành công',
+      callsMine: 'bạn đã gọi', paidMine: 'bạn đã trả', effective: 'đ/1M bạn trả',
+      change: 'đổi giá', open: 'mở',
+      latency: (ms, calls) => 'độ trễ ' + ms + (calls ? ' · ' + calls + ' lượt toàn marketplace' : ''),
+      billedOf: (bill, tokens) => 'hóa đơn ' + bill + ' / ' + tokens + ' token (gồm cache đọc)',
+      noPriceData: 'chưa đủ dữ liệu để suy ra giá',
+      changeHead: 'so với giá đã lưu ngày trước',
+      newOffer: 'offer mới xuất bản',
+      goneOffer: 'offer không còn trên marketplace',
+      changeLine: (field, from, to, pct) => field + ': ' + from + ' → ' + to + ' (' + pct + ')'
+    }
+  },
+  money: {
+    dong: n => n + 'đ',
+    estTitle: (usd, rate, fixed) => 'Hermes ước tính ' + usd + ' USD × ' + rate
+      + 'đ/USD' + (fixed ? ' (tỷ giá cố định)' : ''),
+    rateLine: (usd, cny, source, stale) => '1 USD ≈ ' + usd + cny + ' · nguồn ' + source
+      + (stale ? ' (giá cũ)' : ''),
+    rateCny: cny => ' · 1 CNY ≈ ' + cny,
+    noRate: 'Chưa lấy được tỷ giá USD→đ, nên phần ước tính vẫn in bằng đô la.'
+  },
+  time: {
+    days: n => n + ' ngày',
+    daysHours: (d, h) => d + ' ngày ' + h + 'h',
+    overdue: 'đã quá hạn'
+  },
+  chart: {
+    peak: v => 'đỉnh ' + v,
+    spanFrom: (n, from) => n + ' ngày · từ ' + from,
+    spanTo: (to, label, value) => 'tới ' + to + ' · ' + label + ' ' + value
+  },
+  calendar: {
+    mon: 'T2', wed: 'T4', fri: 'T6',
+    month: m => 'T' + m,
+    yearLegend: (year, since, days) => 'Năm ' + year + ' (T1→T12) · store giữ hóa đơn từ ' + since
+      + ' · ' + days + ' ngày có chi tiêu tới hôm nay · bấm một ô để xem log ngày đó',
+    noBill: 'Chưa có hóa đơn trong store.',
+    less: 'ít', more: 'nhiều (đ/ngày)',
+    callsTip: n => n + ' lượt',
+    openLog: 'bấm để xem log ngày này',
+    future: d => d + ' · chưa tới',
+    noSpend: d => d + ' · không chi tiêu',
+    beforeData: (d, since) => d + ' · sớm hơn dữ liệu hóa đơn sớm nhất (' + since + ')'
+  },
+  detail: {
+    title: 'Chi tiết lượt gọi', close: 'Đóng',
+    time: 'Thời điểm', providerModel: 'Provider / model', vilaoKey: 'Vilao API key', apiMode: 'api_mode',
+    session: 'Session', platform: 'Nền tảng', kind: 'Loại', main: 'chính', aux: 'phụ trợ',
+    tokensInOut: 'Tokens vào/ra', cacheReadWrite: 'Cache đọc/ghi', reasoning: 'Reasoning',
+    delayTtft: 'Độ trễ / TTFT', result: 'Kết quả', error: 'lỗi', context: 'Context',
+    hermesEstimate: 'Hermes ước tính', vilaoBill: 'Vilao hóa đơn', billMatch: 'Khớp hóa đơn'
+  }
+}
 /* BUNDLE-END */
 
 const BUNDLES = { en: LOCALE_EN, vi: LOCALE_VI }
