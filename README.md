@@ -79,7 +79,10 @@ hand is equivalent.
 `vilao_pat` is declared `type: secret`, so it never lands in `config.yaml`. The hub's field shows only
 whether a value is present; saving it writes the `VILAO_PAT` variable into that home's `.env` through the
 app's credential route. The page's own settings route drops the key by name, so the value cannot reach
-the renderer even if it were somehow in the subtree.
+the renderer even if it were somehow in the subtree. The token is also declared in `requires_env`, so
+`hermes plugins install` offers to collect it during installation — and skipping that prompt is a
+supported outcome, not a failed install: it reports the variable left unset, and the page runs as in
+"Without a billing provider" above.
 
 The page reads the three non-secret settings through one route. A key you never set answers with the
 default above instead of being absent, so a fresh install paints English and dong rather than failing to
