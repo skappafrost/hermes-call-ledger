@@ -1,8 +1,9 @@
 """Vilao billing client: the real-dong side of the Usage page.
 
 Only GETs. The account's Personal Access Token is full-scope (vilao issues one token per account
-with no scoping, including ``wallet:write``), so this module never posts anything and resolves the
-secret through :func:`pat` -- the agent's secret scope first, the acting home's ``.env`` second.
+with no scoping, including ``wallet:write``), so this module never posts anything, and :func:`pat`
+resolves it through the agent's secret scope and nothing else -- the scope is what knows which profile
+is asking.
 """
 from __future__ import annotations
 
@@ -25,24 +26,26 @@ PAGE_TIMEOUT = httpx.Timeout(90.0, connect=10.0)
 
 
 def pat() -> Optional[str]:
-    """The console PAT, scoped to the profile that is asking."""
-    try:
-        from agent.secret_scope import get_secret
+    """The console PAT for the profile making the request, through Hermes' secret scope and nowhere else.
 
+    The dashboard binds the requesting profile's scope around every plugin route
+    (`hermes_cli/web_server_dashboard.py:812-851`), so a scope miss is not a reason to go hunting: the one
+    place a `.env` fallback could fire is where no scope exists, and there it would answer a secondary
+    profile with the launch profile's token. This credential is full-scope (vilao issues one per account,
+    including wallet writes), which is precisely why it is resolved by the seam that knows who is asking.
+
+    A missing scope is reported as the same `PermissionError` an unset token produces, because every route
+    already maps that to a 401 and a plugin handler must not raise anything else at a client.
+    """
+    from agent.secret_scope import UnscopedSecretError, get_secret
+
+    try:
         value = get_secret("VILAO_PAT")
-        if value:
-            return str(value)
-    except Exception:
-        pass
-    try:
-        from hermes_constants import get_hermes_home
-
-        for line in (get_hermes_home() / ".env").read_text(encoding="utf-8", errors="ignore").splitlines():
-            if line.startswith("VILAO_PAT="):
-                return line.split("=", 1)[1].strip().strip('"').strip("'")
-    except OSError:
-        pass
-    return None
+    except UnscopedSecretError as exc:
+        raise PermissionError(
+            "VILAO_PAT is unavailable here: no profile secret scope is bound"
+        ) from exc
+    return str(value) if value else None
 
 
 def _ts(created_at: Optional[str]) -> float:

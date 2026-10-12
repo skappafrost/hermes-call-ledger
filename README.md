@@ -113,7 +113,9 @@ cannot see from a diff.
   characters that would matter here (`/`, `.`, `?`, `&`, whitespace, `..`), which is what stops an id from
   turning into `../usage` or a query string.
 - **One secret, read one way.** `VILAO_PAT` through Hermes' own secret scope
-  (`agent.secret_scope.get_secret`), falling back to the home's `.env` line. Errors name the variable or
+  (`agent.secret_scope.get_secret`) and through nothing else: the dashboard binds the requesting
+  profile's scope around every plugin route, so a hand-rolled `.env` read could only ever answer one
+  profile with another's token. Errors name the variable or
   the HTTP status, never the value, and no route returns it. Two optional variables pin the FX rate
   outright and skip the feed: `VILAO_USD_VND`, and `VILAO_CNY_VND` for yuan.
 - **Everything it stores is in one directory named `plugin-data/call-ledger/`.** The SQLite ledger and the

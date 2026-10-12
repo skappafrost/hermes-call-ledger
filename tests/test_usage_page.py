@@ -1288,6 +1288,68 @@ def test_the_same_file_reached_by_two_paths_boots_once(tmp_path):
     assert len(store._booted) == 1, store._booted
 
 
+def test_pat_never_reads_the_env_file_directly(tmp_path):
+    """A `.env` on disk is not a credential source for this module (rule 11).
+
+    The private fallback used to open `<home>/.env` and scan for `VILAO_PAT=` whenever the scoped read
+    came back empty. Hermes binds the requesting profile's secret scope around every plugin route
+    (`hermes_cli/web_server_dashboard.py:812-851`), so the fallback could only fire where no scope exists
+    -- and there it answers a secondary profile with whatever token the launch profile happens to hold.
+    Its parser was also not Hermes' parser: no `export`, no inline-comment strip, no quote escapes, no
+    BOM handling, so a value Hermes reads correctly could come back mangled here.
+
+    The file is written with a token that is NOT a secret and NOT real; the assertion is only that this
+    module cannot see it.
+    """
+    _close_everything()
+    home = Path(tmp_path) / "profile"
+    home.mkdir(parents=True)
+    marker = "read-from-the-file-which-must-not-be-read"
+    (home / ".env").write_text("VILAO_PAT=%s\n" % marker, encoding="utf-8")
+    saved_home, saved_token = os.environ.get("HERMES_HOME"), os.environ.get("VILAO_PAT")
+    os.environ["HERMES_HOME"] = str(home)
+    os.environ.pop("VILAO_PAT", None)
+    try:
+        bill = _load("rw_bill_pat_file", PLUGIN_ROOT / "usage_bill.py")
+        got = bill.pat()
+        assert got is None, "pat() resolved a credential from the .env file it is not allowed to read"
+    finally:
+        for name, value in (("HERMES_HOME", saved_home), ("VILAO_PAT", saved_token)):
+            os.environ.pop(name, None)
+            if value is not None:
+                os.environ[name] = value
+        _close_everything()
+
+
+def test_pat_folds_a_missing_scope_into_the_no_credential_path(tmp_path):
+    """`UnscopedSecretError` becomes this module's existing PermissionError, never a raw raise.
+
+    A route that raises the scope error straight at the client breaks the plugin-handler contract the host
+    documents (`tests/fixtures/plugins/example-dashboard/dashboard/plugin_api.py:29-30`: a plugin handler
+    must never raise out to the client). The routes already translate PermissionError into HTTP 401, which
+    is the same answer the user gets when the variable is simply unset -- and the honest one, because from
+    here there is no way to tell whether the profile has a token.
+    """
+    import agent.secret_scope as scope
+
+    bill = _load("rw_bill_pat_scope", PLUGIN_ROOT / "usage_bill.py")
+    real = scope.get_secret
+
+    def unscoped(_name, *args, **kwargs):
+        raise scope.UnscopedSecretError("VILAO_PAT", "test: no scope bound")
+
+    scope.get_secret = unscoped
+    try:
+        try:
+            bill.pat()
+        except PermissionError as exc:
+            assert "VILAO_PAT" in str(exc), exc
+        else:
+            raise AssertionError("a missing scope must not read as 'no token configured' silently")
+    finally:
+        scope.get_secret = real
+
+
 if __name__ == "__main__":
     import tempfile
 
