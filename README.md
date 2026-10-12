@@ -138,8 +138,11 @@ cannot see from a diff.
   function reached from a hook, a route or a sync. No other tool's credential file is read — not a
   keychain, not another plugin's cache, not a container env file.
 - **Links out are checked too.** The marketplace rows can carry a console page per offer; the link is only
-  built when both path segments are plain slugs, and only `https` URLs on `vilao.ai` are handed to the
-  system browser.
+  built when both path segments are plain slugs, and only `https` URLs on `vilao.ai` ever get opened. The
+  opening itself goes through the plugin SDK's own door, `ctx.os.openExternal` — not the desktop shell's
+  internal `window.hermesDesktop` bridge, which is not a plugin surface. The guard runs before either, so
+  a refused URL reaches no door at all, and `window.open` remains only as the fallback for a host that
+  exposes no door or a shell that answered `false`.
 
 Re-check the two claims a diff cannot show, over the shipped code (tests are left out on purpose — they
 name refused hosts to prove the refusal):

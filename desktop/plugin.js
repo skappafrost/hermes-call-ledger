@@ -599,6 +599,11 @@ const { useValue, atom, useQuery, queryClient, ROUTES_AREA, SIDEBAR_NAV_AREA, PA
 
 let rest = null
 let onEvent = typeof host.onEvent === 'function' ? host.onEvent.bind(host) : null
+/* The SDK's OS door (apps/desktop/src/contrib/plugin.ts:64), captured at register() like `rest` is. It is
+ * the attributed way a plugin asks the machine to open a link; `window.hermesDesktop` is the app's own
+ * bridge, which a listed plugin may not use (catalog rule 8: the SDK surface only). Null on a host that
+ * exposes no such door, which is the one case the fallback below is for. */
+let osOpen = null
 
 const $tab = atom('live')
 const $error = atom(null)
@@ -2001,12 +2006,13 @@ function priceCell(v, promo) {
   ] })
 }
 
-/* The desktop shell exposes window.hermesDesktop.openExternal for exactly this: a plugin that wants the
- * system browser rather than a navigation inside the app.
+/* A plugin that wants the system browser rather than a navigation inside the app asks the SDK, which
+ * answers with a result instead of an exception: `false` means this shell refused the URL.
  *
  * The URL comes from the marketplace API, so it is checked here as well as at the source: https, and a
  * host the console actually is. Handing an arbitrary string to the OS shell is how a field that today
- * holds a model slug could tomorrow hold something else. */
+ * holds a model slug could tomorrow hold something else -- and the check runs first, so a refused URL
+ * never reaches any door, fallback included. */
 const ALLOWED_LINK_HOSTS = ['vilao.ai', 'www.vilao.ai']
 
 function safeExternal(url) {
@@ -2020,18 +2026,20 @@ function safeExternal(url) {
   return u.href
 }
 
+function openInNewTab(safe) {
+  if (typeof window !== 'undefined' && window.open) window.open(safe, '_blank', 'noopener')
+}
+
 function openExternal(url) {
   const safe = safeExternal(url)
   if (!safe) return
-  try {
-    if (window.hermesDesktop && typeof window.hermesDesktop.openExternal === 'function') {
-      void window.hermesDesktop.openExternal(safe)
-      return
-    }
-  } catch (e) {
-    /* fall through to a plain anchor navigation */
+  if (!osOpen) {
+    openInNewTab(safe)
+    return
   }
-  window.open(safe, '_blank', 'noopener')
+  Promise.resolve(osOpen(safe)).then(ok => {
+    if (ok === false) openInNewTab(safe)
+  }, () => openInNewTab(safe))
 }
 
 const MODELS_PER = 100
@@ -2653,14 +2661,24 @@ function Page() {
   ] })
 }
 
+/* The doors this page needs from the host, captured once at registration. Each is feature-detected
+ * because the renderer can be pointed at an older or remote host that has no such member; a door that is
+ * absent degrades to its own fallback rather than failing the page. Named separately from register() so
+ * the unit gate (tests/ui_units.mjs) can hand it a fake door and watch which way a link leaves. */
+function bindDoors(ctx) {
+  const os = (ctx && ctx.os) || null
+  osOpen = os && typeof os.openExternal === 'function' ? os.openExternal.bind(os) : null
+  try { rest = ctx.rest || null } catch (e) { rest = null }
+  try { pref = ctx.storage || null } catch (e) { pref = null }
+}
+
 export default {
   id: PLUGIN_ID,
   name: PLUGIN_NAME,
   description: 'Per-model call log and cost charts: every provider Hermes called, with real dong from the vilao bill.',
   defaultEnabled: true,
   register(ctx) {
-    try { rest = ctx.rest || null } catch (e) { rest = null }
-    try { pref = ctx.storage || null } catch (e) { pref = null }
+    bindDoors(ctx)
     /* ctx.i18n is built for every plugin (apps/desktop/src/contrib/plugin.ts), so the catch below covers
      * a remote or older host that has no such door, not the local case. */
     try {

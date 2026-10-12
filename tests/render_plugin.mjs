@@ -35,7 +35,7 @@ src = src
 src += '\nexport { LiveTab, TrendTab, LogTab, QuotaTab, WalletTab, KeysTab, ModelsTab, Page, Calendar, '
   + 'Lines, Pager, sortRows, csvOf, cellValue, nextSort, pageList, priceDelta, netPrice, effectivePrice, '
   + 'MODEL_COLS, SESSION_COLS, LOG_MODEL_COLS, KEY_COLS, PROVIDER_COLS, safeExternal, '
-  + 'LOCALE_EN, LOCALE_VI, resolve, setLang, lang, t, formatMoney, dong, est }\n'
+  + 'LOCALE_EN, LOCALE_VI, resolve, setLang, lang, t, formatMoney, dong, est, openExternal, bindDoors }\n'
 io.writeFileSync(join(here, 'page-under-test.mjs'), src, 'utf-8')
 
 const stub = await import(url(join(here, 'sdk-stub.mjs')))

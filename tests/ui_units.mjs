@@ -184,5 +184,47 @@ check('javascript: is refused', ui.safeExternal('javascript:alert(1)') === null)
 check('a vilao-looking host with a different authority is refused',
   ui.safeExternal('https://vilao.ai.evil.test/model') === null)
 
+/* --- which door a link leaves through ------------------------------------------------------
+ * The guard above proves a bad URL is refused; it cannot prove what happens to a good one. This page
+ * asking the machine to open a browser is the only outbound action its UI can take, so both branches are
+ * pinned: the SDK door gets the validated URL, a refused URL reaches no door at all, and `window.open` is
+ * the fallback for a host with no door (or a shell that answered false) -- never for a URL we would not
+ * have opened anyway. */
+const tick = () => new Promise(resolve => setTimeout(resolve, 0))
+{
+  const throughDoor = []
+  ui.bindDoors({ os: { openExternal: url => { throughDoor.push(url); return Promise.resolve(true) } } })
+  ui.openExternal('https://vilao.ai/model/cx/gpt-6-astra')
+  await tick()
+  check('the SDK door opens an allowed offer',
+    throughDoor.length === 1 && throughDoor[0] === 'https://vilao.ai/model/cx/gpt-6-astra', throughDoor)
+
+  throughDoor.length = 0
+  ui.openExternal('https://evil.test/model')
+  ui.openExternal('javascript:alert(1)')
+  ui.openExternal('https://vilao.ai.evil.test/model')
+  await tick()
+  check('nothing reaches the door until it passes the guard', throughDoor.length === 0, throughDoor)
+
+  // A shell that refuses the scheme (openExternal resolves false) degrades to the plain tab, visibly.
+  const fallbacks = []
+  globalThis.window = { open: (u, t, f) => fallbacks.push([u, t, f]) }
+  ui.bindDoors({ os: { openExternal: () => Promise.resolve(false) } })
+  ui.openExternal('https://vilao.ai/model/cx/gpt-6-astra')
+  await tick()
+  check('a refused door falls back once', fallbacks.length === 1 && fallbacks[0][2] === 'noopener', fallbacks)
+
+  // No door at all (older or remote host): the fallback, still only for a URL that passed the guard.
+  fallbacks.length = 0
+  ui.bindDoors({})
+  ui.openExternal('https://vilao.ai/model/cx/gpt-6-astra')
+  ui.openExternal('https://evil.test/model')
+  await tick()
+  check('no door still opens the safe link only', fallbacks.length === 1
+    && fallbacks[0][0] === 'https://vilao.ai/model/cx/gpt-6-astra', fallbacks)
+  delete globalThis.window
+  ui.bindDoors({})   // leave the module unbound; nothing below may depend on a stubbed door
+}
+
 console.log(fails ? '\nUI UNITS FAILED: ' + fails : '\nUI UNITS OK')
 process.exit(fails ? 1 : 0)
