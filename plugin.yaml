@@ -1,6 +1,7 @@
 {
   "name": "hermes-call-ledger",
   "version": "1.0.0",
+  "requires_hermes": ">=0.21.6",
   "description": "Per-call cost ledger for Hermes Desktop: every call, priced against the real bill.",
   "author": "skappafrost",
   "manifest_version": 1,

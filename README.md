@@ -58,9 +58,12 @@ Open it from the sidebar (**Call Ledger**), from the command palette (`Call Ledg
 `Ctrl+Alt+C` (`Cmd+Alt+C` on macOS). Inside the page: `[` and `]` page, `/` focuses the filter, `1`-`7`
 switch tab, `Esc` closes a popover. No modifier is taken and the keys are inert while a field has focus.
 
-Needs Hermes 0.21 or newer. On an older Desktop the page still paints: every app-facing call it makes
-(the i18n door, the locale hook, the external-link door) is guarded, and a missing door falls back to
-English rather than to a blank tab.
+Needs Hermes 0.21.6 or newer, declared as `requires_hermes` in `plugin.yaml`. The floor is enforced, not
+advisory: on an older Desktop the plugin is skipped before import, with the reason logged, so there is no
+half-built page. That release is the one the admission review gives as guaranteeing `post_auxiliary_call`
+and the live call event, which is what the Log and Live tabs read. Inside supported versions every
+app-facing call the page makes (the i18n door, the locale hook, the external-link door) is still guarded,
+and a missing door falls back to English or to `window.open` rather than to a blank tab.
 
 ## Configure
 
