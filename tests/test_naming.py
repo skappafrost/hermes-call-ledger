@@ -15,21 +15,21 @@ from tools.scan_secrets import NOT_SHIPPED          # noqa: E402  (one scope lis
 # literals join at compile time, so the source never holds a complete forbidden token while the
 # comparison over the other files stays exact.
 FORBIDDEN = ("hermes-reset" "watch", "PLUGIN_" "NAME = 'Usage'", "/" "reset" "watch")
-# One exception, and it is asserted rather than skipped: the import glob that still finds stores written
-# before the rename. Those files are the only record of charges from that period, so dropping the pattern
-# would silently lose history. Only that exact spelling, with the marker on its own line, is whitelisted.
-LEGACY_OK = "pre-rename stores"
 # The upstream plugin's catalog id, assembled from pieces so this file is not a hit for it either.
 UPSTREAM_ID = "hermes-reset" "watch"
-# Lineage and coexistence are README copy: the catalog's admission rule wants the upstream project named,
-# and a reader choosing between two plugins that register the same three hooks needs the id in order to
-# remove one. That is prose *about* a third party, which is not what this gate hunts -- it exists to catch
+# Lineage and coexistence are README copy: the catalog's admission rule wants the upstream project named
+# by a derived entry, and a reader deciding whether to install this one needs the id to look it up. That
+# is prose *about* a third party, which is not what this gate hunts -- it exists to catch
 # this plugin still addressing itself by the old name (id, route, store dir), and those stay forbidden
 # everywhere, README included: only this one token, in this one file, is exempted, and the number of
 # exempted lines is locked below so a mention cannot spread unnoticed.
 DOC_LINEAGE_FILE = "README.md"
 DOC_LINEAGE_TOKENS = (UPSTREAM_ID,)
-DOC_LINEAGE_LINES = 5
+# Two lines in the Coexistence heading and its opening sentence, two in the Lineage paragraph that names
+# the ancestor and its repository. Recounted down from five when the coexistence text was corrected: it
+# had claimed both plugins register the same hooks, and the upstream plugin's own catalog entry declares
+# none. Locking the number is the point -- a sixth line means the old name spread somewhere new.
+DOC_LINEAGE_LINES = 4
 # Surfaces a reader of this release cannot reach: the status-bar quota popover and the plugin that owns it
 # belong to the private fork the design doc keeps out of the catalog. Shipped copy that ends there is a
 # sentence that goes nowhere on the reader's machine, and a comment that says it is where the next copy
@@ -46,15 +46,15 @@ VERSION_FIELDS = (r'"version":\s*"([^"]+)"',
 # The old store directory, assembled from pieces so that this file is not a hit for its own count.
 STORE_DIR = "plugin-" "data"
 OLD_STORE_NAME = "reset" "watch"
-LEGACY_STORE = STORE_DIR + "/" + OLD_STORE_NAME
 # Every spelling of that directory a shipped line may still carry: the contiguous glob, and the same
 # directory built out of separate path elements (`"plugin-data"` then `"resetwatch"`), which a substring
 # comparison cannot see.
 LEGACY_SPELLINGS = re.compile(STORE_DIR + r"""["'/ ]{0,6}""" + OLD_STORE_NAME)
-# usage_store.py's reader glob, plus the nine fixture paths in the suite that write a pre-rename store so
-# the import stays tested. Locked rather than counted: an increase is something new learning the old name,
-# a deletion is a test that stopped covering the history the reader glob exists to import.
-LEGACY_SPELLING_COUNT = 10
+# One: the test that proves the reader never opens that directory. It used to be ten -- the reader glob
+# plus the fixture paths that wrote a pre-rename store for the import to find -- and both halves went away
+# with the glob they described. Raising this number means a line was added on purpose, and the gate below
+# names the file it came from.
+LEGACY_SPELLING_COUNT = 1
 
 
 def _tracked_text():
@@ -68,34 +68,30 @@ def _tracked_text():
 
 
 def test_no_private_identity_survives():
-    """The whitelist is the store-directory spelling itself, never the comment alone.
+    """No exemption is granted for the old store directory any more, so none is coded here.
 
-    A marker-only exemption is an escape hatch: a line that carried `pre-rename stores` could have
-    reintroduced the plugin id or the old route and passed this gate and the count test below both. So a
-    line is exempt only when it names the old store directory *and* carries the marker, and there is
-    exactly one such line -- the reader glob that still imports stores written before the rename.
+    This gate used to allow exactly one line -- the reader glob in `usage_store.py`, recognized by naming
+    the old store directory *and* carrying `pre-rename stores` (a marker-only exemption was rejected on
+    purpose: a line that merely carried the marker could reintroduce the plugin id or the old route and
+    pass both gates). The glob no longer reads that directory at all, because no published plugin writes
+    it, so the exemption's only remaining power would be to let the name back in. It is deleted with the
+    line it covered.
 
-    The second, narrower exemption is the README's lineage prose: only the upstream catalog id, only in
-    that file, only the locked number of lines. An old route or the old store directory in the README is
-    still a failure, not an exemption.
+    The narrower exemption that stays is the README's lineage prose: only the upstream catalog id, only
+    in that file, only the locked number of lines. An old route in the README is still a failure.
     """
-    exempt, lineage, bad = [], [], []
+    lineage, bad = [], []
     for f, text in _tracked_text():
         rel = f.relative_to(ROOT).as_posix()
         for i, line in enumerate(text.splitlines()):
             found = [b for b in FORBIDDEN if b in line]
             if not found:
                 continue
-            where = (rel, i + 1)
             if rel == DOC_LINEAGE_FILE and all(b in DOC_LINEAGE_TOKENS for b in found):
-                lineage.append(where)
-            elif LEGACY_STORE in line and LEGACY_OK in line:
-                exempt.append(where)
+                lineage.append((rel, i + 1))
             else:
-                bad.append(where)
+                bad.append((rel, i + 1))
     assert bad == [], bad
-    assert len(exempt) == 1, exempt
-    assert exempt[0][0] == "usage_store.py", exempt
     assert len(lineage) == DOC_LINEAGE_LINES, lineage
     assert {rel for rel, _ in lineage} == {DOC_LINEAGE_FILE}, lineage
 
@@ -104,18 +100,23 @@ def test_the_old_store_dir_is_named_exactly_where_the_history_needs_it():
     """Every spelling of the old store directory is counted, and the number is a lock.
 
     The test this replaces looked for the contiguous glob only, so it reported "exactly one line" while
-    nine more shipped lines named the same directory as separate path elements -- the old name is in the
-    tree ten times, and the name of this test is what that number actually guards.
+    nine more shipped lines named the same directory as separate path elements -- a name a substring
+    comparison cannot see is still a name in the tree, and this test's name is what that number guards.
+
+    It is now one, and the one is the test that proves the directory is never read. Two things follow,
+    both asserted rather than asserted-less: the shipped code names it nowhere, and the count cannot
+    creep back up without a line being added on purpose.
     """
     hits = [(f.relative_to(ROOT).as_posix(), i + 1) for f, text in _tracked_text()
             for i, line in enumerate(text.splitlines()) if LEGACY_SPELLINGS.search(line)]
     assert len(hits) == LEGACY_SPELLING_COUNT, hits
-    assert {rel for rel, _ in hits} == {"usage_store.py", "tests/test_usage_page.py"}, hits
-    # The one non-test spelling is the reader glob, and it is the line the gate above exempts.
+    assert {rel for rel, _ in hits} == {"tests/test_usage_page.py"}, hits
     reader = [ln for ln in (ROOT / "usage_store.py").read_text(encoding="utf-8").splitlines()
               if LEGACY_SPELLINGS.search(ln)]
-    assert len(reader) == 1, reader
-    assert LEGACY_STORE in reader[0] and LEGACY_OK in reader[0], reader
+    assert reader == [], reader
+    shipped = [ln for f, text in _tracked_text() if not f.relative_to(ROOT).as_posix().startswith("tests/")
+               for ln in text.splitlines() if LEGACY_SPELLINGS.search(ln)]
+    assert shipped == [], shipped
 
 
 def test_identity_is_one_string_across_surfaces():

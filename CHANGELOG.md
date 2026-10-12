@@ -55,8 +55,9 @@ source files, and covers only those per-profile stores — a ledger sitting dire
 not part of it, and no other state (caches, settings, keys) is reused.
 
 If you are running the older build and want its history, export what you need from it before installing
-this one. If you want both installed, read the Coexistence section in the README first: both register the
-same three hooks, so every call gets recorded twice, in two places that will not agree on the total.
+this one: nothing in this release reads another plugin's store directory. The two can stay installed
+together — the older build registers no observer hooks and keeps no call ledger, so there is no double
+count to agree on; the README's Coexistence section says what each one does.
 
 ### Disclosure, restated for this release
 

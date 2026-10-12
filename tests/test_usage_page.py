@@ -402,17 +402,17 @@ def test_legacy_per_profile_stores_are_imported_once(tmp_path):
     """
     home_a, home_b = tmp_path / "profiles" / "alpha", tmp_path / "profiles" / "beta"
     for h in (home_a, home_b):
-        (h / "plugin-data" / "resetwatch").mkdir(parents=True)
+        (h / "plugin-data" / "call-ledger").mkdir(parents=True)
     _close_everything()
     now = time.time()
     # Written by hand, not through the module: the module now resolves the shared path, and these files
     # have to look like what the previous build left behind -- including the older column set.
-    _write_legacy(home_a / "plugin-data" / "resetwatch" / "calls.sqlite", [
+    _write_legacy(home_a / "plugin-data" / "call-ledger" / "calls.sqlite", [
         (now - 60, "alpha", "s1", "vilao-ai", "vilao-ai/cx/gpt-6-astra", 1100, None, None,
          "local_only", None, "hook"),
         (now - 30, "alpha", None, "vilao-ai", "cx/gpt-6-astra", 1100, 500.0, "legacy-1",
          "bill_only", None, "bill")])
-    _write_legacy(home_b / "plugin-data" / "resetwatch" / "calls.sqlite", [
+    _write_legacy(home_b / "plugin-data" / "call-ledger" / "calls.sqlite", [
         (now - 20, "beta", "s2", "vilao-ai", "vilao-ai/alic/glm-5.1", 550, None, None,
          "local_only", None, "hook"),
         (now - 30, "beta", None, "vilao-ai", "cx/gpt-6-astra", 1100, 500.0, "legacy-1",
@@ -435,10 +435,10 @@ def test_legacy_per_profile_stores_are_imported_once(tmp_path):
     os.environ["HERMES_HOME"] = str(home_b)
     store2 = _load("rw_store_again", PLUGIN_ROOT / "usage_store.py")
     assert store2.stats()["rows"] == 3, store2.recent(limit=20)
-    assert (home_a / "plugin-data" / "resetwatch" / "calls.sqlite").exists(), "a legacy file was removed"
+    assert (home_a / "plugin-data" / "call-ledger" / "calls.sqlite").exists(), "a legacy file was removed"
     # and it stays incremental: a call written to the old path after the first import must still arrive,
     # or everything between the import and the app restarting would be stranded in a file nobody reads
-    _write_legacy_rows(home_a / "plugin-data" / "resetwatch" / "calls.sqlite", [
+    _write_legacy_rows(home_a / "plugin-data" / "call-ledger" / "calls.sqlite", [
         (time.time() + 5, "alpha", "s9", "opencode-zen", "opencode-zen/space-bunny-free", 900, None, None,
          "local_only", None, "hook")])
     store.close_connections()
@@ -448,6 +448,33 @@ def test_legacy_per_profile_stores_are_imported_once(tmp_path):
     rows2 = again.recent(limit=50)
     assert len(rows2) == 4, rows2
     assert any(r["session_id"] == "s9" for r in rows2), rows2
+
+
+def test_a_resetwatch_store_is_never_drained(tmp_path):
+    """A store in the old plugin's directory is not this plugin's history to import.
+
+    the reader glob used to also scan the old plugin's own store directory, copied from the private build this
+    tree was renamed from. No plugin in the catalog writes that path -- the listed one that shares the name declares no
+    hooks and keeps no store at all, per its own catalog entry -- so the pattern's only effect was to
+    pull someone else's rows into these totals, which is the opposite of the separation this suite locks
+    down everywhere else.
+    """
+    alien = tmp_path / "profiles" / "beta" / "plugin-data" / "resetwatch" / "calls.sqlite"
+    alien.parent.mkdir(parents=True)
+    _close_everything()
+    _write_legacy(alien, [
+        (time.time() - 60, "beta", None, "vilao-ai", "cx/gpt-6-astra", 1100, 500.0, "alien-1",
+         "bill_only", None, "bill")])
+    os.environ["HERMES_HOME"] = str(tmp_path)
+    for stale in ("rw_store", "rw_bill"):
+        sys.modules.pop(stale, None)
+    store = _load("rw_store_no_drain", PLUGIN_ROOT / "usage_store.py")
+    try:
+        assert store.stats()["rows"] == 0, store.stats()
+        assert "alien-1" not in {str(r.get("bill_request_id")) for r in store.recent(limit=50)}
+    finally:
+        store.close_connections()
+        _close_everything()
 
 
 def test_every_profile_lands_in_one_shared_store_tagged_by_profile(tmp_path):
@@ -851,11 +878,11 @@ def test_a_billing_row_never_claims_a_profile(tmp_path):
 def test_existing_billing_rows_are_blanketed_once(tmp_path):
     """The write path only fixes the future, so rows stored by the old build are corrected in place."""
     home = tmp_path / "profiles" / "alpha"
-    (home / "plugin-data" / "resetwatch").mkdir(parents=True)
+    (home / "plugin-data" / "call-ledger").mkdir(parents=True)
     _close_everything()
     now = time.time()
     # a legacy store that carries a bill row stamped with the home that ingested it
-    _write_legacy(home / "plugin-data" / "resetwatch" / "calls.sqlite", [
+    _write_legacy(home / "plugin-data" / "call-ledger" / "calls.sqlite", [
         (now - 30, "alpha", None, "vilao-ai", "cx/gpt-6-astra", 1100, 500.0, "old-1",
          "bill_only", None, "bill")])
     os.environ["HERMES_HOME"] = str(tmp_path)
@@ -905,10 +932,10 @@ def test_day_bucket_matches_the_sql_expression(tmp_path):
 def test_a_store_without_day_gets_it_backfilled(tmp_path):
     """An old file gains the column and every existing row gains a bucket, once."""
     home = tmp_path / "profiles" / "alpha"
-    (home / "plugin-data" / "resetwatch").mkdir(parents=True)
+    (home / "plugin-data" / "call-ledger").mkdir(parents=True)
     _close_everything()
     now = time.time()
-    _write_legacy(home / "plugin-data" / "resetwatch" / "calls.sqlite",
+    _write_legacy(home / "plugin-data" / "call-ledger" / "calls.sqlite",
                   [(now - i * 60, "alpha", "s%d" % i, "nvidia", "nvidia/nim-foo", 500, None, None,
                     "local_only", None, "hook") for i in range(4)])
     os.environ["HERMES_HOME"] = str(tmp_path)

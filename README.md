@@ -206,18 +206,19 @@ against the calls already in the store.
 
 ## Coexistence with hermes-resetwatch
 
-This plugin registers the same three hooks as `hermes-resetwatch` (Adolanium): both observe every model
-call. Installing both writes two separate ledgers of the same calls, and each page reports a total the
-other cannot see, so neither one on its own is the number to take to an invoice. **Pick one.** Remove the
-other with `hermes plugins remove <name>` and restart the app.
+The two do not overlap in data. The listed plugin registers no hooks (`provides_hooks: []` in its own
+catalog entry, confirmed in its manifest) and keeps no call ledger — it reads vendor quota endpoints
+rather than Hermes' own call log — so installing both costs you two sidebar entries and nothing else:
+neither page can see, change or double-count what the other records.
 
-One detail worth knowing before you decide, because it makes the two installs less independent than two
-pages suggest: this plugin drains older per-profile ledger files it finds under the install root's
-`profiles/` tree into the shared store. That read is incremental, read-only against the source file, and
-additive — rows the store already holds are rejected by its unique indexes — but a still-running older
-install keeps writing into a directory this drain knows, so some of its rows can surface here as well.
+What this plugin does read is one directory of its own past: `profiles/*/plugin-data/call-ledger/calls.sqlite`,
+a per-profile store no published version writes any more, imported once into the shared ledger so a build
+of this plugin from before the merge does not strand its own history. The read is incremental, read-only
+against the source file, and additive — rows the store already holds are rejected by its unique indexes —
+and it is deliberately confined to that name: the older directory this tree was renamed out of belongs to
+another plugin and is never opened.
 
-There is deliberately no coexistence warning. Deciding whether to nag you would mean reading another
+There is no runtime coexistence warning of any kind. Deciding whether to nag you would mean reading another
 plugin's settings or state, and that is the credential-adjacent behaviour this release is distancing
 itself from, so the choice stays where it belongs: with the person installing.
 
@@ -295,9 +296,10 @@ blocks temporary-directory deletion on Windows.
 ## Lineage
 
 Derived from **`hermes-resetwatch`** (Adolanium), a Desktop plugin in the Hermes plugin catalog
-(`https://github.com/Adolanium/hermes-resetwatch`). What is inherited is the slot: the plugin id shape, the
-route-and-nav-and-palette shell, the three observer hooks and the manifest's frame. What is not inherited
-is everything that made the two plugins answer different questions.
+(`https://github.com/Adolanium/hermes-resetwatch`). What is inherited is the directory it installed into:
+the plugin id's shape, the route-and-nav-and-palette shell and the manifest's frame. The three observer
+hooks are this plugin's own — the listed one registers none — and so is everything that made the two
+plugins answer different questions.
 
 `hermes-resetwatch` is a quota reader. Its own catalog entry describes the method: a probe script reads
 provider API keys from the Hermes `.env` and from other tools' local stores — a secret-cache file,

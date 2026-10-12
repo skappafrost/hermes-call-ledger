@@ -578,11 +578,11 @@ _COLUMNS = ("ts", "profile", "session_id", "platform", "task", "provider", "mode
             "bill_cost_vnd", "bill_key_id", "match_state", "bill_request_id", "source", "day")
 
 
-# Per-profile stores this shared file reads history out of: this plugin's own directory, plus the one it
-# was called under before the rename. Both are read because a store is the only record of the charges it
-# holds -- dropping the older pattern would strand that period's ledger with no way to notice.
-LEGACY_GLOBS = ("profiles/*/plugin-data/call-ledger/calls.sqlite",
-                "profiles/*/plugin-data/resetwatch/calls.sqlite")  # legacy import path, pre-rename stores
+# Per-profile stores this shared file reads history out of: only the directory this plugin itself wrote
+# before the shared store existed. `resetwatch` used to be listed here, carried over from the private
+# build this tree was renamed from -- no published plugin writes that path, so its only effect was to
+# import another plugin's rows into these totals.
+LEGACY_GLOBS = ("profiles/*/plugin-data/call-ledger/calls.sqlite",)
 
 
 def _import_legacy(conn: sqlite3.Connection, db_path: str) -> int:
